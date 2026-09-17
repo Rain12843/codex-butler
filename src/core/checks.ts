@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
+import { constants } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
@@ -50,8 +52,9 @@ export async function runChecks(): Promise<CheckResult[]> {
       detail: version === null ? "not found" : major !== null && major < 20 ? `${version} (Node.js 20+ required)` : version
     };
   });
+  const codexHome = join(homedir(), ".codex");
   try {
-    await access(`${homedir()}/.codex`);
+    await access(codexHome, constants.F_OK);
     results.push({ name: "Codex home", ok: true, detail: "~/.codex exists" });
   } catch {
     results.push({ name: "Codex home", ok: false, detail: "~/.codex not found" });
