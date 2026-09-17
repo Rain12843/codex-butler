@@ -50,7 +50,7 @@ codex-butler config mode <mode>
 ```
 
 - `setup` — initialize Butler's user configuration and show the first-time checklist.
-- `doctor` — inspect Node.js, Git, Codex CLI, GitHub CLI, Python, `~/.codex`, AGENTS.md, configuration, and MCP configuration evidence.
+- `doctor` — inspect Node.js, Git, Codex CLI, GitHub CLI, Python, `~/.codex`, Codex instruction files, user/project skill directories, configuration, and MCP configuration evidence.
 - `init` — recursively inspect the project (while skipping generated/dependency directories), detect the package manager and common language/tooling files, generate `AGENTS.md`, and initialize `.codex-butler/` project memory.
 - `plan` — turn a plain-language task into a deterministic work plan covering inspection, implementation, validation, and risks. It performs no network calls and does not execute the task.
 - `github issue` / `github pr` — read issue or pull-request context through the locally installed GitHub CLI. Butler passes fixed argument lists to `gh` and does not invoke a shell or execute content from the issue/PR body.
@@ -58,9 +58,9 @@ codex-butler config mode <mode>
 - `github pr-diff` — inspect a PR patch and report changed files, additions/deletions, and heuristic warnings for credential-like content, remote shell execution, broad deletion, elevated privileges, lockfile drift, and sensitive files. The diff excerpt is bounded and explicitly treated as untrusted content.
 - `github pr-review` — run deterministic review checks over a PR diff, including risky-pattern findings, large-change notes, dependency metadata notes, and missing-obvious-test-file notes. It is heuristic and does not replace human review.
 - `github ci` — show recent GitHub Actions workflow runs and their status, branch, commit, and creation time. It is read-only and uses the local GitHub CLI.
-- `github ci-diagnose` — inspect failed-step logs for a workflow run and produce deterministic diagnostics: failed steps, a coarse error category, likely cause, next actions, and a bounded untrusted log excerpt. If no run ID is supplied, Butler selects the most recent failed run among the last 10 runs.
+- `github ci-diagnose` — inspect failed-step logs for a workflow run and produce deterministic diagnostics: failed steps, a coarse error category, likely cause, next actions, and a bounded untrusted log excerpt. If no run ID is supplied, Butler selects the most recent failed run among the last 10 runs; an explicit run ID also loads its workflow metadata.
 - `skills` — browse built-in skills.
-- `skills install` — install a reviewable local skill template. Existing skills are protected from accidental overwrite unless `--force` is supplied.
+- `skills install` — install a reviewable local skill template into Codex's user skill discovery directory. Existing skills are protected from accidental overwrite unless `--force` is supplied.
 - `skills import` — import a local `SKILL.md` directory after validating that it contains only regular files, no symlinks, and stays within file-count and size limits.
 - `skills audit` — scan an installed `SKILL.md` for common risky patterns such as remote shell execution, destructive commands, instruction-override attempts, and credential-like content.
 - `config` — manage Butler's local configuration and default operating mode.
@@ -77,7 +77,7 @@ Workflow logs, Issue bodies, PR bodies, diffs, and other external GitHub content
 
 ### Local skill storage
 
-Built-in and imported skills are installed under `~/.codex-butler/skills/`. Butler does not execute downloaded code as part of skill installation; imported skill trees are copied as regular files after validation.
+Built-in and imported skills are installed under `~/.agents/skills/`, which is a Codex user skill discovery location. Butler does not execute downloaded code as part of skill installation; imported skill trees are copied as regular files after validation.
 
 ## Project memory
 
