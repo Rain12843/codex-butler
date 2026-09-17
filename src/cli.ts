@@ -9,7 +9,7 @@ import { ensureConfig, getConfigPath, loadConfig, saveConfig } from "./core/conf
 import { inspectCodex } from "./core/codex.js";
 
 const program = new Command();
-program.name("codex-butler").description("A productivity and diagnostics layer for OpenAI Codex").version("0.2.0");
+program.name("codex-butler").description("A productivity and diagnostics layer for OpenAI Codex").version("0.3.0");
 
 program.command("doctor").description("Diagnose the local Codex development environment").action(async () => {
   console.log(pc.bold("Codex Butler Doctor"));
@@ -51,6 +51,7 @@ program.command("init").description("Analyze the current project and create AGEN
   const created = await initMemory(process.cwd());
   console.log(pc.green(`✓ Created ${target}`));
   console.log(pc.green(`✓ Initialized project memory (${created.length} files)`));
+  console.log(pc.dim(`Detected ${project.files.length} files and ${project.directories.length} directories.`));
 });
 
 const skills = program.command("skills").description("Manage reusable Codex Butler skills");
