@@ -4,11 +4,11 @@ import pc from "picocolors";
 import { runChecks } from "./core/checks.js";
 import { analyzeProject, generateAgents } from "./core/project.js";
 import { initMemory } from "./core/memory.js";
-import { formatSkills, getSkillPath, getSkillsPath, installSkill, listInstalledSkills, removeSkill } from "./core/skills.js";
+import { formatSkills, getSkillPath, getSkillsPath, importSkillDirectory, installSkill, listInstalledSkills, removeSkill } from "./core/skills.js";
 import { ensureConfig, getConfigPath, loadConfig, saveConfig, isButlerMode } from "./core/config.js";
 import { inspectCodex } from "./core/codex.js";
 import { auditSkillDirectory } from "./core/skill-audit.js";
-import { formatTaskPlan, planTask } from "./core/planner.js";
+import { formatTaskPlan, planGitHubContext, planTask } from "./core/planner.js";
 import { formatGitHubContext, getIssueContext, getPullRequestContext, analyzePullRequestDiff, formatPullRequestDiffAnalysis } from "./core/github.js";
 import { diagnoseWorkflowRun, formatWorkflowDiagnosis, formatWorkflowRuns, getRecentWorkflowRuns } from "./core/ci.js";
 
@@ -68,8 +68,16 @@ github.command("issue <number>").description("Show an issue as structured contex
   try { console.log(formatGitHubContext(await getIssueContext(Number(number)))); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
+github.command("issue-plan <number>").description("Turn a GitHub issue into a deterministic work plan").action(async (number: string) => {
+  try { console.log(formatTaskPlan(planGitHubContext(await getIssueContext(Number(number))))); }
+  catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
+});
 github.command("pr <number>").description("Show a pull request as structured context").action(async (number: string) => {
   try { console.log(formatGitHubContext(await getPullRequestContext(Number(number)))); }
+  catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
+});
+github.command("pr-plan <number>").description("Turn a GitHub pull request into a deterministic review plan").action(async (number: string) => {
+  try { console.log(formatTaskPlan(planGitHubContext(await getPullRequestContext(Number(number))))); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 github.command("pr-diff <number>").description("Analyze a pull request diff for change scope and risky patterns").action(async (number: string) => {
@@ -112,6 +120,15 @@ skills.command("path").description("Show the local skill directory").action(() =
 skills.command("install <name>").description("Install a built-in skill locally").option("--force", "replace an existing skill").action(async (name: string, options: { force?: boolean }) => {
   try { console.log(pc.green(`✓ Installed ${name}: ${await installSkill(name, options.force === true)}`)); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
+});
+skills.command("import <path>").description("Import a local skill directory containing SKILL.md").option("--name <name>", "target skill name").option("--force", "replace an existing skill").action(async (path: string, options: { name?: string; force?: boolean }) => {
+  try {
+    const target = await importSkillDirectory(path, options.name, options.force === true);
+    console.log(pc.green(`✓ Imported skill: ${target}`));
+  } catch (error) {
+    console.error(pc.red(error instanceof Error ? error.message : String(error)));
+    process.exitCode = 1;
+  }
 });
 skills.command("remove <name>").description("Remove an installed skill").action(async (name: string) => {
   try { await removeSkill(name); console.log(pc.green(`✓ Removed ${name}`)); }
