@@ -12,6 +12,10 @@ export interface GitHubContext {
   url: string;
 }
 
+function validateNumber(number: number, label: string): void {
+  if (!Number.isInteger(number) || number < 1) throw new Error(`${label} number must be a positive integer`);
+}
+
 async function gh(args: string[]): Promise<string> {
   try {
     const { stdout } = await exec("gh", args, { timeout: 10000, maxBuffer: 1024 * 1024 });
@@ -22,18 +26,25 @@ async function gh(args: string[]): Promise<string> {
   }
 }
 
+function parseContext(raw: string, kind: GitHubContext["kind"]): GitHubContext {
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { throw new Error("GitHub CLI returned invalid JSON"); }
+  if (!value || typeof value !== "object") throw new Error("GitHub CLI returned an invalid object");
+  const item = value as Record<string, unknown>;
+  if (!Number.isInteger(item.number) || typeof item.title !== "string" || typeof item.state !== "string" || typeof item.body !== "string" || typeof item.url !== "string") {
+    throw new Error("GitHub CLI returned incomplete issue/PR data");
+  }
+  return { kind, number: item.number, title: item.title, state: item.state, body: item.body, url: item.url };
+}
+
 export async function getIssueContext(number: number): Promise<GitHubContext> {
-  if (!Number.isInteger(number) || number < 1) throw new Error("Issue number must be a positive integer");
-  const raw = await gh(["issue", "view", String(number), "--json", "number,title,state,body,url"]);
-  const value = JSON.parse(raw) as Omit<GitHubContext, "kind">;
-  return { ...value, kind: "issue" };
+  validateNumber(number, "Issue");
+  return parseContext(await gh(["issue", "view", String(number), "--json", "number,title,state,body,url"]), "issue");
 }
 
 export async function getPullRequestContext(number: number): Promise<GitHubContext> {
-  if (!Number.isInteger(number) || number < 1) throw new Error("Pull request number must be a positive integer");
-  const raw = await gh(["pr", "view", String(number), "--json", "number,title,state,body,url"]);
-  const value = JSON.parse(raw) as Omit<GitHubContext, "kind">;
-  return { ...value, kind: "pull_request" };
+  validateNumber(number, "Pull request");
+  return parseContext(await gh(["pr", "view", String(number), "--json", "number,title,state,body,url"]), "pull_request");
 }
 
 export function formatGitHubContext(context: GitHubContext): string {
