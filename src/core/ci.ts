@@ -30,7 +30,7 @@ async function gh(args: string[]): Promise<string> {
     return stdout.trim();
   } catch (error) {
     const candidate = error as { stdout?: string; stderr?: string; message?: string };
-    const output = [candidate.stdout, candidate.stderr].filter(Boolean).join("\n").trim();
+    const output = [candidate.stdout, candidate.stderr].filter((value): value is string => typeof value === "string" && value.length > 0).join("\n").trim();
     if (output) return output;
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`GitHub CLI request failed: ${detail}`);
