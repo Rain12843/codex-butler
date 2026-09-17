@@ -10,7 +10,7 @@ import { inspectCodex } from "./core/codex.js";
 import { auditSkillDirectory } from "./core/skill-audit.js";
 import { formatTaskPlan, planTask } from "./core/planner.js";
 import { formatGitHubContext, getIssueContext, getPullRequestContext } from "./core/github.js";
-import { formatWorkflowRuns, getRecentWorkflowRuns } from "./core/ci.js";
+import { diagnoseWorkflowRun, formatWorkflowDiagnosis, formatWorkflowRuns, getRecentWorkflowRuns } from "./core/ci.js";
 
 const program = new Command();
 program.name("codex-butler").description("A productivity and diagnostics layer for OpenAI Codex").version("0.5.0");
@@ -75,6 +75,25 @@ github.command("pr <number>").description("Show a pull request as structured con
 github.command("ci").description("Show recent GitHub Actions workflow runs").option("-n, --limit <number>", "number of runs to inspect", "10").action(async (options: { limit: string }) => {
   try { console.log(formatWorkflowRuns(await getRecentWorkflowRuns(Number(options.limit)))); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
+});
+github.command("ci-diagnose [runId]").description("Diagnose a failed GitHub Actions run from its failed-step logs").action(async (runId?: string) => {
+  try {
+    let selectedId: number;
+    let summary = null;
+    if (runId !== undefined) {
+      selectedId = Number(runId);
+    } else {
+      const runs = await getRecentWorkflowRuns(10);
+      const failed = runs.find((run) => run.conclusion === "failure");
+      if (!failed) throw new Error("No failed workflow run found in the last 10 runs. Pass a run ID explicitly to diagnose a specific run.");
+      selectedId = failed.databaseId;
+      summary = failed;
+    }
+    console.log(formatWorkflowDiagnosis(await diagnoseWorkflowRun(selectedId, summary)));
+  } catch (error) {
+    console.error(pc.red(error instanceof Error ? error.message : String(error)));
+    process.exitCode = 1;
+  }
 });
 
 const skills = program.command("skills").description("Manage reusable Codex Butler skills");
