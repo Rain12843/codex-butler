@@ -51,8 +51,8 @@ export async function inspectCodex(root: string): Promise<CodexCheck[]> {
     { name: "Codex CLI", status: version ? "ok" : "missing", detail: version ?? "codex command not found" },
     { name: "~/.codex", status: codexDirExists ? "ok" : "warning", detail: codexDirExists ? codexDir : "directory not found" },
     { name: "Codex config", status: configText !== null ? "ok" : "warning", detail: configText !== null ? configPath : `config.toml not found or unreadable under ${codexDir}` },
-    { name: "Global AGENTS.md", status: globalAgentsExists ? "ok" : "warning", detail: globalAgentsExists ? "${globalAgents} or ${globalAgentsOverride}" : "not found under ~/.codex" },
-    { name: "Project AGENTS.md", status: projectAgentsExists ? "ok" : "warning", detail: projectAgentsExists ? "${projectAgents} or ${projectAgentsOverride}" : "not found; run codex-butler init" },
+    { name: "Global AGENTS.md", status: globalAgentsExists ? "ok" : "warning", detail: globalAgentsExists ? `${globalAgents} or ${globalAgentsOverride}` : "not found under ~/.codex" },
+    { name: "Project AGENTS.md", status: projectAgentsExists ? "ok" : "warning", detail: projectAgentsExists ? `${projectAgents} or ${projectAgentsOverride}` : "not found; run codex-butler init" },
     { name: "User skills", status: userSkillsExists ? "ok" : "warning", detail: userSkillsExists ? userSkills : "not found; run codex-butler skills install <name>" },
     { name: "Project skills", status: projectSkillsExists ? "ok" : "warning", detail: projectSkillsExists ? projectSkills : "not found" },
     { name: "MCP configuration", status: mcpToml ? "ok" : "warning", detail: mcpToml ? "MCP server entries detected in ~/.codex/config.toml" : "no [mcp_servers.*] entries detected in config.toml" }
