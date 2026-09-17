@@ -28,14 +28,13 @@ function validateNumber(number: number, label: string): void {
 
 async function gh(args: string[], maxBuffer = 1024 * 1024): Promise<string> {
   try {
-    const { stdout } = await exec("gh", args, { timeout: 15000, maxBuffer });
-    return stdout.trim();
+    const result = await exec("gh", args, { timeout: 15000, maxBuffer });
+    return String(result.stdout).trim();
   } catch (error) {
-    const candidate = error as { stdout?: string; stderr?: string };
-    const output = [candidate.stdout, candidate.stderr].filter((value): value is string => typeof value === "string" && value.length > 0).join("\n").trim();
+    const candidate = error as { stdout?: unknown; stderr?: unknown };
+    const output = [candidate.stdout, candidate.stderr].filter(Boolean).map(String).join("\n").trim();
     if (output) throw new Error(`GitHub CLI request failed: ${output.slice(0, 2000)}`);
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`GitHub CLI request failed: ${detail}`);
+    throw new Error(`GitHub CLI request failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -78,12 +77,13 @@ export function analyzeDiffText(number: number, diff: string): PullRequestDiffAn
   for (const line of diff.split("\n")) {
     if (line.startsWith("diff --git a/")) {
       const match = line.match(/^diff --git a\/(.+) b\/(.+)$/);
-      if (match) changedFiles.push(match[2]);
+      const file = match?.[2];
+      if (file) changedFiles.push(file);
       continue;
     }
     if (line.startsWith("+++ ") || line.startsWith("--- ") || line.startsWith("@@")) continue;
-    if (line.startsWith("+") && !line.startsWith("+++")) additions++;
-    if (line.startsWith("-") && !line.startsWith("---")) deletions++;
+    if (line.startsWith("+")) additions++;
+    else if (line.startsWith("-")) deletions++;
   }
 
   const warnings = new Set<string>();
@@ -96,7 +96,15 @@ export function analyzeDiffText(number: number, diff: string): PullRequestDiffAn
   if (changedFiles.some((file) => /(^|\/)(\.env|.*\.pem|.*\.key)$/.test(file))) warnings.add("The diff changes a potentially sensitive environment or key file.");
 
   const lines = diff.split("\n").filter((line) => line.trim());
-  return { number, filesChanged: changedFiles.length, additions, deletions, changedFiles: changedFiles.slice(0, 100), warnings: [...warnings], diffExcerpt: lines.slice(0, 120).join("\n").slice(0, 12000) };
+  return {
+    number,
+    filesChanged: changedFiles.length,
+    additions,
+    deletions,
+    changedFiles: changedFiles.slice(0, 100),
+    warnings: [...warnings],
+    diffExcerpt: lines.slice(0, 120).join("\n").slice(0, 12000)
+  };
 }
 
 export async function analyzePullRequestDiff(number: number): Promise<PullRequestDiffAnalysis> {
