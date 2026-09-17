@@ -4,8 +4,8 @@ import pc from "picocolors";
 import { runChecks } from "./core/checks.js";
 import { analyzeProject, generateAgents } from "./core/project.js";
 import { initMemory } from "./core/memory.js";
-import { formatSkills, getSkillsPath, installSkill, listInstalledSkills, removeSkill } from "./core/skills.js";
-import { ensureConfig, getConfigPath, loadConfig, saveConfig } from "./core/config.js";
+import { formatSkills, getSkillPath, getSkillsPath, installSkill, listInstalledSkills, removeSkill } from "./core/skills.js";
+import { ensureConfig, getConfigPath, loadConfig, saveConfig, isButlerMode } from "./core/config.js";
 import { inspectCodex } from "./core/codex.js";
 import { auditSkillDirectory } from "./core/skill-audit.js";
 import { formatTaskPlan, planTask } from "./core/planner.js";
@@ -95,10 +95,15 @@ skills.command("remove <name>").description("Remove an installed skill").action(
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 skills.command("audit <name>").description("Audit an installed skill for risky instructions").action(async (name: string) => {
-  const findings = await auditSkillDirectory(`${getSkillsPath()}/${name}`);
-  if (!findings.length) { console.log(pc.green("✓ No known risky patterns found.")); return; }
-  for (const finding of findings) console.log(`${finding.severity === "high" ? pc.red("✗") : pc.yellow("!")} ${finding.detail}`);
-  process.exitCode = findings.some((finding) => finding.severity === "high") ? 2 : 0;
+  try {
+    const findings = await auditSkillDirectory(getSkillPath(name));
+    if (!findings.length) { console.log(pc.green("✓ No known risky patterns found.")); return; }
+    for (const finding of findings) console.log(`${finding.severity === "high" ? pc.red("✗") : pc.yellow("!")} ${finding.detail}`);
+    process.exitCode = findings.some((finding) => finding.severity === "high") ? 2 : 0;
+  } catch (error) {
+    console.error(pc.red(error instanceof Error ? error.message : String(error)));
+    process.exitCode = 1;
+  }
 });
 skills.action(async () => { console.log(pc.bold("Codex Butler Skills")); console.log(formatSkills()); });
 
@@ -106,10 +111,9 @@ const config = program.command("config").description("Manage Butler configuratio
 config.command("show").description("Show the current configuration").action(async () => console.log(JSON.stringify(await loadConfig(), null, 2)));
 config.command("init").description("Create the default configuration").action(async () => { await ensureConfig(); console.log(pc.green(`✓ Configuration ready: ${getConfigPath()}`)); });
 config.command("mode <mode>").description("Set the default operating mode").action(async (mode: string) => {
-  const valid = ["fast", "developer", "deep", "review", "debug", "architecture", "release", "autonomous"] as const;
-  if (!(valid as readonly string[]).includes(mode)) { console.error(pc.red(`Invalid mode: ${mode}`)); process.exitCode = 1; return; }
+  if (!isButlerMode(mode)) { console.error(pc.red(`Invalid mode: ${mode}`)); process.exitCode = 1; return; }
   const current = await loadConfig();
-  await saveConfig({ ...current, defaultMode: mode as typeof current.defaultMode });
+  await saveConfig({ ...current, defaultMode: mode });
   console.log(pc.green(`✓ Default mode set to ${mode}`));
 });
 config.action(async () => console.log(JSON.stringify(await loadConfig(), null, 2)));
