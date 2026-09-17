@@ -12,15 +12,28 @@ export interface GitHubContext {
   url: string;
 }
 
+export interface PullRequestDiffAnalysis {
+  number: number;
+  filesChanged: number;
+  additions: number;
+  deletions: number;
+  changedFiles: string[];
+  warnings: string[];
+  diffExcerpt: string;
+}
+
 function validateNumber(number: number, label: string): void {
   if (!Number.isInteger(number) || number < 1) throw new Error(`${label} number must be a positive integer`);
 }
 
-async function gh(args: string[]): Promise<string> {
+async function gh(args: string[], maxBuffer = 1024 * 1024): Promise<string> {
   try {
-    const { stdout } = await exec("gh", args, { timeout: 10000, maxBuffer: 1024 * 1024 });
+    const { stdout } = await exec("gh", args, { timeout: 15000, maxBuffer });
     return stdout.trim();
   } catch (error) {
+    const candidate = error as { stdout?: string; stderr?: string };
+    const output = [candidate.stdout, candidate.stderr].filter((value): value is string => typeof value === "string" && value.length > 0).join("\n").trim();
+    if (output) throw new Error(`GitHub CLI request failed: ${output.slice(0, 2000)}`);
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`GitHub CLI request failed: ${detail}`);
   }
@@ -50,6 +63,86 @@ export async function getIssueContext(number: number): Promise<GitHubContext> {
 export async function getPullRequestContext(number: number): Promise<GitHubContext> {
   validateNumber(number, "Pull request");
   return parseContext(await gh(["pr", "view", String(number), "--json", "number,title,state,body,url"]), "pull_request");
+}
+
+export async function getPullRequestDiff(number: number): Promise<string> {
+  validateNumber(number, "Pull request");
+  return gh(["pr", "diff", String(number), "--patch"], 4 * 1024 * 1024);
+}
+
+function analyzeDiffText(number: number, diff: string): PullRequestDiffAnalysis {
+  const changedFiles: string[] = [];
+  let additions = 0;
+  let deletions = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("diff --git a/")) {
+      const match = line.match(/^diff --git a\/(.+) b\/(.+)$/);
+      if (match) changedFiles.push(match[2]);
+      continue;
+    }
+    if (line.startsWith("+++ ") || line.startsWith("--- ") || line.startsWith("@@")) continue;
+    if (line.startsWith("+") && !line.startsWith("+++")) additions++;
+    if (line.startsWith("-") && !line.startsWith("---")) deletions++;
+  }
+
+  const warnings = new Set<string>();
+  const lower = diff.toLowerCase();
+  if (/\b(api[_ -]?key|secret|token|password)\s*[:=]/i.test(diff) || /-----begin (rsa|openssh|private) key-----/i.test(diff)) {
+    warnings.add("The diff contains credential-like material; inspect it before committing.");
+  }
+  if (/curl\s+[^\n|]+\|\s*(sh|bash)|wget\s+[^\n|]+\|\s*(sh|bash)/i.test(diff)) {
+    warnings.add("The diff introduces a remote-download-and-shell pattern.");
+  }
+  if (/rm\s+-rf\s+(\/|~|\$home)/i.test(diff)) {
+    warnings.add("The diff contains a broad recursive delete command.");
+  }
+  if (/chmod\s+777|sudo\s+/i.test(diff)) {
+    warnings.add("The diff introduces elevated privileges or broad permission changes.");
+  }
+  if (/package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?/.test(lower) && /package\.json/.test(lower)) {
+    warnings.add("Dependency manifest and lockfile both changed; verify they remain synchronized.");
+  }
+  if (changedFiles.some((file) => /(^|\/)(\.env|.*\.pem|.*\.key)$/.test(file))) {
+    warnings.add("The diff changes a potentially sensitive environment or key file.");
+  }
+
+  const lines = diff.split("\n").filter((line) => line.trim());
+  return {
+    number,
+    filesChanged: changedFiles.length,
+    additions,
+    deletions,
+    changedFiles: changedFiles.slice(0, 100),
+    warnings: [...warnings],
+    diffExcerpt: lines.slice(0, 120).join("\n").slice(0, 12000)
+  };
+}
+
+export async function analyzePullRequestDiff(number: number): Promise<PullRequestDiffAnalysis> {
+  return analyzeDiffText(number, await getPullRequestDiff(number));
+}
+
+export function formatPullRequestDiffAnalysis(analysis: PullRequestDiffAnalysis): string {
+  return [
+    `# Pull Request Diff #${analysis.number}`,
+    "",
+    `- Files changed: ${analysis.filesChanged}`,
+    `- Additions: ${analysis.additions}`,
+    `- Deletions: ${analysis.deletions}`,
+    "",
+    "## Changed files",
+    analysis.changedFiles.length ? analysis.changedFiles.map((file) => `- ${file}`).join("\n") : "- None detected",
+    "",
+    "## Warnings",
+    analysis.warnings.length ? analysis.warnings.map((warning) => `- ${warning}`).join("\n") : "- No known risky patterns detected.",
+    "",
+    "## Untrusted diff excerpt",
+    "",
+    "```diff",
+    analysis.diffExcerpt || "No diff content returned.",
+    "```",
+    ""
+  ].join("\n");
 }
 
 export function formatGitHubContext(context: GitHubContext): string {
