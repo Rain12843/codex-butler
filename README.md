@@ -30,8 +30,9 @@ codex-butler init [--force]
 codex-butler skills
 codex-butler skills list
 codex-butler skills path
-codex-butler skills install <name>
+codex-butler skills install <name> [--force]
 codex-butler skills remove <name>
+codex-butler skills audit <name>
 codex-butler config
 codex-butler config show
 codex-butler config init
@@ -42,8 +43,15 @@ codex-butler config mode <mode>
 - `doctor` — inspect Node.js, Git, Codex CLI, GitHub CLI, Python, `~/.codex`, AGENTS.md, configuration, and common MCP configuration locations.
 - `init` — recursively inspect the project (while skipping generated/dependency directories), detect the package manager and common language/tooling files, generate `AGENTS.md`, and initialize `.codex-butler/` project memory.
 - `skills` — browse built-in skills.
-- `skills install` — install a safe local skill template from the built-in catalog.
+- `skills install` — install a reviewable local skill template. Existing skills are protected from accidental overwrite unless `--force` is supplied.
+- `skills audit` — scan an installed `SKILL.md` for common risky patterns such as remote shell execution, destructive commands, instruction-override attempts, and credential-like content.
 - `config` — manage Butler's local configuration and default operating mode.
+
+### Security model
+
+Skills are instructions, not trusted executable programs. Butler's built-in installer writes plain-text `SKILL.md` files and does not execute their contents. Imported or downloaded skills should be treated as untrusted input and audited before use. The audit is heuristic rather than a security guarantee; it can produce false positives and cannot prove that a skill is safe.
+
+OpenAI's current developer guidance also recommends auditing skills and other instruction files because models can be sensitive to instructions contained in them. citeturn0search1
 
 ### Operating modes
 
@@ -81,6 +89,8 @@ CI runs type checking, builds, and tests on pushes to `main` and pull requests.
 - [x] Local skill installer
 - [x] Butler configuration manager
 - [x] GitHub Actions CI foundation
+- [x] Skill installation path hardening
+- [x] Skill security audit foundation
 - [ ] Skill registry with signed/verified sources
 - [ ] Codex configuration deep inspection
 - [ ] GitHub issue / PR workflows
