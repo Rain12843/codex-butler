@@ -10,6 +10,7 @@ import { inspectCodex } from "./core/codex.js";
 import { auditSkillDirectory } from "./core/skill-audit.js";
 import { formatTaskPlan, planTask } from "./core/planner.js";
 import { formatGitHubContext, getIssueContext, getPullRequestContext } from "./core/github.js";
+import { formatWorkflowRuns, getRecentWorkflowRuns } from "./core/ci.js";
 
 const program = new Command();
 program.name("codex-butler").description("A productivity and diagnostics layer for OpenAI Codex").version("0.5.0");
@@ -69,6 +70,10 @@ github.command("issue <number>").description("Show an issue as structured contex
 });
 github.command("pr <number>").description("Show a pull request as structured context").action(async (number: string) => {
   try { console.log(formatGitHubContext(await getPullRequestContext(Number(number)))); }
+  catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
+});
+github.command("ci").description("Show recent GitHub Actions workflow runs").option("-n, --limit <number>", "number of runs to inspect", "10").action(async (options: { limit: string }) => {
+  try { console.log(formatWorkflowRuns(await getRecentWorkflowRuns(Number(options.limit)))); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 
