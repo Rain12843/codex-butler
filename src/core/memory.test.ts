@@ -1,32 +1,33 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import test from "node:test";
 import { ensureButlerGitignore, initMemory } from "./memory.js";
 
-test("initMemory creates files once and ensureButlerGitignore is idempotent", async () => {
-  const root = await mkdtemp(join(tmpdir(), "codex-butler-memory-"));
-  try {
-    const created = await initMemory(root);
-    assert.ok(created.length >= 5);
-    const second = await initMemory(root);
-    assert.equal(second.length, 0);
+test("initMemory creates expected files once", async () => {
+  const root = await mkdtemp(join(tmpdir(), "butler-memory-"));
+  const first = await initMemory(root);
+  assert.equal(first.length, 5);
+  const second = await initMemory(root);
+  assert.equal(second.length, 0);
+});
 
-    const first = await ensureButlerGitignore(root);
-    assert.equal(first, true);
-    const again = await ensureButlerGitignore(root);
-    assert.equal(again, false);
-    const text = await readFile(join(root, ".gitignore"), "utf8");
-    assert.match(text, /\.codex-butler\//);
+test("ensureButlerGitignore adds entry when missing", async () => {
+  const root = await mkdtemp(join(tmpdir(), "butler-gi-"));
+  const updated = await ensureButlerGitignore(root);
+  assert.equal(updated, true);
+  const content = await readFile(join(root, ".gitignore"), "utf8");
+  assert.match(content, /\.codex-butler\//);
+  const again = await ensureButlerGitignore(root);
+  assert.equal(again, false);
+});
 
-    await writeFile(join(root, ".gitignore"), "node_modules/\n", "utf8");
-    const appended = await ensureButlerGitignore(root);
-    assert.equal(appended, true);
-    const updated = await readFile(join(root, ".gitignore"), "utf8");
-    assert.match(updated, /node_modules\//);
-    assert.match(updated, /\.codex-butler\//);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
+test("ensureButlerGitignore appends without duplicating", async () => {
+  const root = await mkdtemp(join(tmpdir(), "butler-gi2-"));
+  await writeFile(join(root, ".gitignore"), "node_modules/\n", "utf8");
+  const updated = await ensureButlerGitignore(root);
+  assert.equal(updated, true);
+  const content = await readFile(join(root, ".gitignore"), "utf8");
+  assert.match(content, /node_modules\/\n\.codex-butler\/\n/);
 });
