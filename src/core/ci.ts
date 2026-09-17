@@ -29,10 +29,18 @@ function parseRuns(raw: string): WorkflowRunSummary[] {
   try { value = JSON.parse(raw); } catch { throw new Error("GitHub CLI returned invalid workflow JSON"); }
   if (!Array.isArray(value)) throw new Error("GitHub CLI returned an invalid workflow list");
   return value.filter((item): item is Record<string, unknown> => !!item && typeof item === "object").map((item) => {
-    if (!Number.isInteger(item.databaseId) || typeof item.name !== "string" || typeof item.status !== "string" || (item.conclusion !== null && typeof item.conclusion !== "string") || typeof item.headBranch !== "string" || typeof item.headSha !== "string" || typeof item.url !== "string" || typeof item.createdAt !== "string") {
+    const databaseId = item.databaseId;
+    const name = item.name;
+    const status = item.status;
+    const conclusion = item.conclusion;
+    const branch = item.headBranch;
+    const commit = item.headSha;
+    const url = item.url;
+    const createdAt = item.createdAt;
+    if (!Number.isInteger(databaseId) || typeof name !== "string" || typeof status !== "string" || (conclusion !== null && typeof conclusion !== "string") || typeof branch !== "string" || typeof commit !== "string" || typeof url !== "string" || typeof createdAt !== "string") {
       throw new Error("GitHub CLI returned incomplete workflow data");
     }
-    return { databaseId: item.databaseId, name: item.name, status: item.status, conclusion: item.conclusion, branch: item.headBranch, commit: item.headSha, url: item.url, createdAt: item.createdAt };
+    return { databaseId, name, status, conclusion, branch, commit, url, createdAt };
   });
 }
 
