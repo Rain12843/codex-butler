@@ -10,11 +10,18 @@ import { inspectCodex } from "./core/codex.js";
 import { auditSkillDirectory } from "./core/skill-audit.js";
 import { formatTaskPlan, planGitHubContext, planTask } from "./core/planner.js";
 import { formatGitHubContext, getIssueContext, getPullRequestContext, analyzePullRequestDiff, formatPullRequestDiffAnalysis } from "./core/github.js";
-import { diagnoseWorkflowRun, formatWorkflowDiagnosis, formatWorkflowRuns, getRecentWorkflowRuns } from "./core/ci.js";
+import { diagnoseWorkflowRun, formatWorkflowDiagnosis, formatWorkflowRuns, getRecentWorkflowRuns, getWorkflowRunSummary } from "./core/ci.js";
 import { formatPullRequestReview, reviewPullRequest } from "./core/pr-review.js";
 
 const program = new Command();
 program.name("codex-butler").description("A productivity and diagnostics layer for OpenAI Codex").version("0.6.0");
+
+function parsePositiveInteger(value: string, label: string): number {
+  if (!/^\d+$/.test(value)) throw new Error(`${label} must be a positive integer`);
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) throw new Error(`${label} must be a positive integer`);
+  return parsed;
+}
 
 program.command("doctor").description("Diagnose the local Codex development environment").action(async () => {
   console.log(pc.bold("Codex Butler Doctor"));
@@ -66,31 +73,31 @@ program.command("plan <task>").description("Turn a plain-language task into a de
 
 const github = program.command("github").description("Inspect GitHub context through the local GitHub CLI");
 github.command("issue <number>").description("Show an issue as structured context").action(async (number: string) => {
-  try { console.log(formatGitHubContext(await getIssueContext(Number(number)))); }
+  try { console.log(formatGitHubContext(await getIssueContext(parsePositiveInteger(number, "Issue number")))); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 github.command("issue-plan <number>").description("Turn a GitHub issue into a deterministic work plan").action(async (number: string) => {
-  try { console.log(formatTaskPlan(planGitHubContext(await getIssueContext(Number(number))))); }
+  try { console.log(formatTaskPlan(planGitHubContext(await getIssueContext(parsePositiveInteger(number, "Issue number"))))); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 github.command("pr <number>").description("Show a pull request as structured context").action(async (number: string) => {
-  try { console.log(formatGitHubContext(await getPullRequestContext(Number(number)))); }
+  try { console.log(formatGitHubContext(await getPullRequestContext(parsePositiveInteger(number, "Pull request number")))); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 github.command("pr-plan <number>").description("Turn a GitHub pull request into a deterministic review plan").action(async (number: string) => {
-  try { console.log(formatTaskPlan(planGitHubContext(await getPullRequestContext(Number(number))))); }
+  try { console.log(formatTaskPlan(planGitHubContext(await getPullRequestContext(parsePositiveInteger(number, "Pull request number"))))); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 github.command("pr-diff <number>").description("Analyze a pull request diff for change scope and risky patterns").action(async (number: string) => {
-  try { console.log(formatPullRequestDiffAnalysis(await analyzePullRequestDiff(Number(number)))); }
+  try { console.log(formatPullRequestDiffAnalysis(await analyzePullRequestDiff(parsePositiveInteger(number, "Pull request number")))); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 github.command("pr-review <number>").description("Run deterministic review checks against a pull request diff").action(async (number: string) => {
-  try { console.log(formatPullRequestReview(await reviewPullRequest(Number(number)))); }
+  try { console.log(formatPullRequestReview(await reviewPullRequest(parsePositiveInteger(number, "Pull request number")))); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 github.command("ci").description("Show recent GitHub Actions workflow runs").option("-n, --limit <number>", "number of runs to inspect", "10").action(async (options: { limit: string }) => {
-  try { console.log(formatWorkflowRuns(await getRecentWorkflowRuns(Number(options.limit)))); }
+  try { console.log(formatWorkflowRuns(await getRecentWorkflowRuns(parsePositiveInteger(options.limit, "Workflow limit")))); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 github.command("ci-diagnose [runId]").description("Diagnose a failed GitHub Actions run from its failed-step logs").action(async (runId?: string) => {
@@ -98,7 +105,8 @@ github.command("ci-diagnose [runId]").description("Diagnose a failed GitHub Acti
     let selectedId: number;
     let summary = null;
     if (runId !== undefined) {
-      selectedId = Number(runId);
+      selectedId = parsePositiveInteger(runId, "Workflow run ID");
+      summary = await getWorkflowRunSummary(selectedId);
     } else {
       const runs = await getRecentWorkflowRuns(10);
       const failed = runs.find((run) => run.conclusion === "failure");
