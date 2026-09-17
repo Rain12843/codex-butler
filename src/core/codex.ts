@@ -24,33 +24,31 @@ async function command(command: string, args: string[]): Promise<string | null> 
   } catch { return null; }
 }
 
+async function readText(path: string): Promise<string | null> {
+  try { return await readFile(path, "utf8"); } catch { return null; }
+}
+
 export async function inspectCodex(root: string): Promise<CodexCheck[]> {
   const home = homedir();
   const codexDir = join(home, ".codex");
-  const configCandidates = [join(codexDir, "config.toml"), join(codexDir, "config.json")];
-  const configExists = await Promise.all(configCandidates.map(exists));
-  const configIndex = configExists.findIndex(Boolean);
-  const configPath = configIndex >= 0 ? configCandidates[configIndex] : undefined;
+  const configPath = join(codexDir, "config.toml");
   const agents = [join(home, "AGENTS.md"), join(root, "AGENTS.md")];
-  const mcpCandidates = [join(codexDir, "config.toml"), join(codexDir, "mcp.json"), join(root, ".codex", "mcp.json")];
-  const mcpExists = await Promise.all(mcpCandidates.map(exists));
+  const mcpJson = join(codexDir, "mcp.json");
+  const projectMcpJson = join(root, ".codex", "mcp.json");
   const version = await command("codex", ["--version"]);
   const codexDirExists = await exists(codexDir);
+  const configText = await readText(configPath);
   const globalAgentsExists = await exists(agents[0]);
   const projectAgentsExists = await exists(agents[1]);
+  const mcpToml = configText !== null && /(^|\n)\s*\[\[?mcp_servers(?:\.|\])/m.test(configText);
+  const mcpJsonExists = (await exists(mcpJson)) || (await exists(projectMcpJson));
 
-  const checks: CodexCheck[] = [
+  return [
     { name: "Codex CLI", status: version ? "ok" : "missing", detail: version ?? "codex command not found" },
     { name: "~/.codex", status: codexDirExists ? "ok" : "warning", detail: codexDirExists ? codexDir : "directory not found" },
-    { name: "Codex config", status: configPath ? "ok" : "warning", detail: configPath ? configPath : `no supported config candidate found under ${codexDir}` },
+    { name: "Codex config", status: configText !== null ? "ok" : "warning", detail: configText !== null ? configPath : `config.toml not found or unreadable under ${codexDir}` },
     { name: "Global AGENTS.md", status: globalAgentsExists ? "ok" : "warning", detail: globalAgentsExists ? agents[0] : "not found" },
     { name: "Project AGENTS.md", status: projectAgentsExists ? "ok" : "warning", detail: projectAgentsExists ? agents[1] : "not found; run codex-butler init" },
-    { name: "MCP configuration", status: mcpExists.some(Boolean) ? "ok" : "warning", detail: mcpExists.some(Boolean) ? "candidate configuration found" : "no common MCP configuration candidate found" }
+    { name: "MCP configuration", status: mcpToml || mcpJsonExists ? "ok" : "warning", detail: mcpToml ? "MCP server entries detected in config.toml" : mcpJsonExists ? "MCP configuration file detected" : "no MCP server configuration detected" }
   ];
-
-  if (configPath) {
-    try { await readFile(configPath, "utf8"); }
-    catch { checks[2] = { name: "Codex config", status: "warning", detail: `${configPath} exists but could not be read` }; }
-  }
-  return checks;
 }
