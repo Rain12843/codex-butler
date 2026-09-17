@@ -31,6 +31,11 @@ function assertSafeName(name: string): void {
 
 export function getSkillsPath(): string { return join(homedir(), ".codex-butler", "skills"); }
 
+export function getSkillPath(name: string): string {
+  assertSafeName(name);
+  return join(getSkillsPath(), name);
+}
+
 export async function listInstalledSkills(): Promise<string[]> {
   try { return (await readdir(getSkillsPath(), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort(); }
   catch { return []; }
@@ -40,7 +45,7 @@ export async function installSkill(name: string, force = false): Promise<string>
   assertSafeName(name);
   const skill = builtInSkills.find((item) => item.name === name);
   if (!skill) throw new Error(`Unknown built-in skill: ${name}`);
-  const target = join(getSkillsPath(), name);
+  const target = getSkillPath(name);
   await mkdir(getSkillsPath(), { recursive: true });
   if (!force) {
     try { await access(join(target, "SKILL.md"), constants.F_OK); throw new Error(`Skill already installed: ${name}. Use --force to replace it.`); }
@@ -52,9 +57,8 @@ export async function installSkill(name: string, force = false): Promise<string>
 }
 
 export async function removeSkill(name: string): Promise<void> {
-  assertSafeName(name);
   const base = resolve(getSkillsPath());
-  const target = resolve(base, name);
+  const target = resolve(getSkillPath(name));
   if (relative(base, target).startsWith("..") || target === base) throw new Error("Invalid skill path");
   await rm(target, { recursive: true, force: true });
 }
@@ -63,14 +67,14 @@ export async function importSkillDirectory(source: string, name = basename(resol
   assertSafeName(name);
   const sourcePath = resolve(source);
   try { await access(join(sourcePath, "SKILL.md"), constants.R_OK); } catch { throw new Error("Source directory must contain SKILL.md"); }
-  const target = join(getSkillsPath(), name);
+  const target = getSkillPath(name);
   await mkdir(getSkillsPath(), { recursive: true });
   if (!force) {
     try { await access(target, constants.F_OK); throw new Error(`Skill already exists: ${name}. Use --force to replace it.`); }
     catch (error) { if (error instanceof Error && error.message.startsWith("Skill already exists:")) throw error; }
   }
   await rm(target, { recursive: true, force: true });
-  await cp(sourcePath, target, { recursive: true });
+  await cp(sourcePath, target, { recursive: true, verbatimSymlinks: false });
   return target;
 }
 
