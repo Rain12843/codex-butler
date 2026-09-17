@@ -7,9 +7,10 @@ import { initMemory } from "./core/memory.js";
 import { formatSkills, getSkillsPath, installSkill, listInstalledSkills, removeSkill } from "./core/skills.js";
 import { ensureConfig, getConfigPath, loadConfig, saveConfig } from "./core/config.js";
 import { inspectCodex } from "./core/codex.js";
+import { auditSkillDirectory } from "./core/skill-audit.js";
 
 const program = new Command();
-program.name("codex-butler").description("A productivity and diagnostics layer for OpenAI Codex").version("0.3.0");
+program.name("codex-butler").description("A productivity and diagnostics layer for OpenAI Codex").version("0.4.0");
 
 program.command("doctor").description("Diagnose the local Codex development environment").action(async () => {
   console.log(pc.bold("Codex Butler Doctor"));
@@ -63,13 +64,19 @@ skills.command("list").description("List available and installed skills").action
   console.log(installed.length ? installed.map((name) => `- ${name}`).join("\n") : "- none");
 });
 skills.command("path").description("Show the local skill directory").action(() => console.log(getSkillsPath()));
-skills.command("install <name>").description("Install a built-in skill locally").action(async (name: string) => {
-  try { console.log(pc.green(`✓ Installed ${name}: ${await installSkill(name)}`)); }
+skills.command("install <name>").description("Install a built-in skill locally").option("--force", "replace an existing skill").action(async (name: string, options: { force?: boolean }) => {
+  try { console.log(pc.green(`✓ Installed ${name}: ${await installSkill(name, options.force === true)}`)); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 skills.command("remove <name>").description("Remove an installed skill").action(async (name: string) => {
-  await removeSkill(name);
-  console.log(pc.green(`✓ Removed ${name}`));
+  try { await removeSkill(name); console.log(pc.green(`✓ Removed ${name}`)); }
+  catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
+});
+skills.command("audit <name>").description("Audit an installed skill for risky instructions").action(async (name: string) => {
+  const findings = await auditSkillDirectory(`${getSkillsPath()}/${name}`);
+  if (!findings.length) { console.log(pc.green("✓ No known risky patterns found.")); return; }
+  for (const finding of findings) console.log(`${finding.severity === "high" ? pc.red("✗") : pc.yellow("!")} ${finding.detail}`);
+  process.exitCode = findings.some((finding) => finding.severity === "high") ? 2 : 0;
 });
 skills.action(async () => { console.log(pc.bold("Codex Butler Skills")); console.log(formatSkills()); });
 
