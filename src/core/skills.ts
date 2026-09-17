@@ -1,7 +1,7 @@
-import { access, copyFile, lstat, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { access, copyFile, lstat, mkdir, mkdtemp, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
-import { homedir } from "node:os";
-import { basename, join, relative, resolve } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, join, relative, resolve } from "node:path";
 
 export type SkillCategory = "frontend" | "backend" | "database" | "testing" | "security" | "refactoring" | "git" | "github" | "docker" | "python" | "react" | "flutter" | "devops";
 
@@ -33,6 +33,11 @@ function assertSafeName(name: string): void {
   if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) throw new Error("Invalid skill name");
 }
 
+async function assertRealDirectory(path: string, message: string): Promise<void> {
+  const stat = await lstat(path);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error(message);
+}
+
 export function getSkillsPath(): string { return join(homedir(), ".agents", "skills"); }
 
 export function getSkillPath(name: string): string {
@@ -41,23 +46,43 @@ export function getSkillPath(name: string): string {
 }
 
 export async function listInstalledSkills(): Promise<string[]> {
-  try { return (await readdir(getSkillsPath(), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort(); }
-  catch { return []; }
+  try {
+    await assertRealDirectory(getSkillsPath(), "Codex skills directory must be a real directory");
+    return (await readdir(getSkillsPath(), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  } catch {
+    return [];
+  }
 }
 
 export async function installSkill(name: string, force = false): Promise<string> {
   assertSafeName(name);
   const skill = builtInSkills.find((item) => item.name === name);
   if (!skill) throw new Error(`Unknown built-in skill: ${name}`);
+
+  const skillsPath = getSkillsPath();
   const target = getSkillPath(name);
-  await mkdir(getSkillsPath(), { recursive: true });
+  await mkdir(skillsPath, { recursive: true });
+  await assertRealDirectory(skillsPath, "Codex skills directory must be a real directory");
+
   if (!force) {
-    try { await access(join(target, "SKILL.md"), constants.F_OK); throw new Error(`Skill already installed: ${name}. Use --force to replace it.`); }
-    catch (error) { if (error instanceof Error && error.message.startsWith("Skill already installed:")) throw error; }
+    try {
+      await access(join(target, "SKILL.md"), constants.F_OK);
+      throw new Error(`Skill already installed: ${name}. Use --force to replace it.`);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("Skill already installed:")) throw error;
+    }
   }
-  await mkdir(target, { recursive: true });
-  await writeFile(join(target, "SKILL.md"), skillTemplate(skill), "utf8");
-  return target;
+
+  const staging = await mkdtemp(join(dirname(target), `.codex-butler-${name}-`));
+  try {
+    await writeFile(join(staging, "SKILL.md"), skillTemplate(skill), "utf8");
+    if (force) await rm(target, { recursive: true, force: true });
+    await rename(staging, target);
+    return target;
+  } catch (error) {
+    await rm(staging, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 export async function removeSkill(name: string): Promise<void> {
@@ -107,6 +132,7 @@ export async function validateSkillTree(source: string): Promise<SkillFile[]> {
 export async function importSkillDirectory(source: string, name = basename(resolve(source)), force = false): Promise<string> {
   assertSafeName(name);
   const sourcePath = resolve(source);
+  await assertRealDirectory(sourcePath, "Skill source must be a real directory");
   try { await access(join(sourcePath, "SKILL.md"), constants.R_OK); } catch { throw new Error("Source directory must contain SKILL.md"); }
 
   const target = resolve(getSkillPath(name));
@@ -117,23 +143,38 @@ export async function importSkillDirectory(source: string, name = basename(resol
   }
 
   const files = await validateSkillTree(sourcePath);
-  await mkdir(getSkillsPath(), { recursive: true });
+  const skillsPath = getSkillsPath();
+  await mkdir(skillsPath, { recursive: true });
+  await assertRealDirectory(skillsPath, "Codex skills directory must be a real directory");
+
   if (!force) {
-    try { await access(target, constants.F_OK); throw new Error(`Skill already exists: ${name}. Use --force to replace it.`); }
-    catch (error) { if (error instanceof Error && error.message.startsWith("Skill already exists:")) throw error; }
+    try {
+      await access(target, constants.F_OK);
+      throw new Error(`Skill already exists: ${name}. Use --force to replace it.`);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("Skill already exists:")) throw error;
+    }
   }
 
-  await rm(target, { recursive: true, force: true });
-  await mkdir(target, { recursive: true });
-  for (const file of files) {
-    const sourceFile = join(sourcePath, file.relativePath);
-    const targetFile = join(target, file.relativePath);
-    const current = await lstat(sourceFile);
-    if (!current.isFile() || current.isSymbolicLink()) throw new Error(`Skill source changed during import: ${file.relativePath}`);
-    await mkdir(resolve(targetFile, ".."), { recursive: true });
-    await copyFile(sourceFile, targetFile);
+  const staging = await mkdtemp(join(skillsPath, `.codex-butler-${name}-`));
+  try {
+    for (const file of files) {
+      const sourceFile = join(sourcePath, file.relativePath);
+      const targetFile = join(staging, file.relativePath);
+      const current = await lstat(sourceFile);
+      if (!current.isFile() || current.isSymbolicLink()) throw new Error(`Skill source changed during import: ${file.relativePath}`);
+      if (current.size > MAX_SKILL_FILE_BYTES) throw new Error(`Skill source changed during import: ${file.relativePath}`);
+      await mkdir(dirname(targetFile), { recursive: true });
+      await copyFile(sourceFile, targetFile);
+    }
+
+    if (force) await rm(target, { recursive: true, force: true });
+    await rename(staging, target);
+    return target;
+  } catch (error) {
+    await rm(staging, { recursive: true, force: true });
+    throw error;
   }
-  return target;
 }
 
 export function formatSkills(): string { return builtInSkills.map((skill) => `- ${skill.name}: ${skill.description}`).join("\n"); }
