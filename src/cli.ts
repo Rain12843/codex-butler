@@ -9,6 +9,7 @@ import { ensureConfig, getConfigPath, loadConfig, saveConfig } from "./core/conf
 import { inspectCodex } from "./core/codex.js";
 import { auditSkillDirectory } from "./core/skill-audit.js";
 import { formatTaskPlan, planTask } from "./core/planner.js";
+import { formatGitHubContext, getIssueContext, getPullRequestContext } from "./core/github.js";
 
 const program = new Command();
 program.name("codex-butler").description("A productivity and diagnostics layer for OpenAI Codex").version("0.4.0");
@@ -61,6 +62,17 @@ program.command("plan <task>").description("Turn a plain-language task into a de
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 
+const github = program.command("github").description("Inspect GitHub context through the local GitHub CLI");
+github.command("issue <number>").description("Show an issue as structured context").action(async (number: string) => {
+  try { console.log(formatGitHubContext(await getIssueContext(Number(number)))); }
+  catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
+});
+github.command("pr <number>").description("Show a pull request as structured context").action(async (number: string) => {
+  try { console.log(formatGitHubContext(await getPullRequestContext(Number(number)))); }
+  catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
+});
+
+a const_placeholder;
 const skills = program.command("skills").description("Manage reusable Codex Butler skills");
 skills.command("list").description("List available and installed skills").action(async () => {
   console.log(pc.bold("Available skills"));
