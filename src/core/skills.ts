@@ -67,7 +67,7 @@ export async function removeSkill(name: string): Promise<void> {
   await rm(target, { recursive: true, force: true });
 }
 
-interface SkillFile {
+export interface SkillFile {
   relativePath: string;
   size: number;
 }
@@ -75,7 +75,7 @@ interface SkillFile {
 export async function validateSkillTree(source: string): Promise<SkillFile[]> {
   const sourcePath = resolve(source);
   const rootStat = await lstat(sourcePath);
-  if (!rootStat.isDirectory()) throw new Error("Skill source must be a directory");
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error("Skill source must be a real directory");
 
   const files: SkillFile[] = [];
   let totalBytes = 0;
@@ -90,7 +90,7 @@ export async function validateSkillTree(source: string): Promise<SkillFile[]> {
       }
       if (!entry.isFile()) throw new Error(`Unsupported skill source entry: ${relative(sourcePath, path)}`);
       const fileStat = await lstat(path);
-      if (!fileStat.isFile()) throw new Error(`Skill source entry changed during validation: ${relative(sourcePath, path)}`);
+      if (!fileStat.isFile() || fileStat.isSymbolicLink()) throw new Error(`Skill source entry changed during validation: ${relative(sourcePath, path)}`);
       if (fileStat.size > MAX_SKILL_FILE_BYTES) throw new Error(`Skill file exceeds ${MAX_SKILL_FILE_BYTES} bytes: ${relative(sourcePath, path)}`);
       totalBytes += fileStat.size;
       if (totalBytes > MAX_SKILL_TOTAL_BYTES) throw new Error(`Skill source exceeds ${MAX_SKILL_TOTAL_BYTES} total bytes`);
@@ -109,18 +109,14 @@ export async function importSkillDirectory(source: string, name = basename(resol
   try { await access(join(sourcePath, "SKILL.md"), constants.R_OK); } catch { throw new Error("Source directory must contain SKILL.md"); }
 
   const target = resolve(getSkillPath(name));
-  const skillsRoot = resolve(getSkillsPath());
   const sourceRelativeToTarget = relative(target, sourcePath);
   const targetRelativeToSource = relative(sourcePath, target);
   if (sourcePath === target || !sourceRelativeToTarget.startsWith("..") || !targetRelativeToSource.startsWith("..")) {
     throw new Error("Skill source and target must be separate directories");
   }
-  if (!relative(skillsRoot, target).startsWith(".") && relative(skillsRoot, target) !== "") {
-    throw new Error("Invalid skill target path");
-  }
 
   const files = await validateSkillTree(sourcePath);
-  await mkdir(skillsRoot, { recursive: true });
+  await mkdir(getSkillsPath(), { recursive: true });
   if (!force) {
     try { await access(target, constants.F_OK); throw new Error(`Skill already exists: ${name}. Use --force to replace it.`); }
     catch (error) { if (error instanceof Error && error.message.startsWith("Skill already exists:")) throw error; }
