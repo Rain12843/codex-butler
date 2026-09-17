@@ -33,7 +33,7 @@ function assertSafeName(name: string): void {
   if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) throw new Error("Invalid skill name");
 }
 
-export function getSkillsPath(): string { return join(homedir(), ".codex-butler", "skills"); }
+export function getSkillsPath(): string { return join(homedir(), ".agents", "skills"); }
 
 export function getSkillPath(name: string): string {
   assertSafeName(name);
