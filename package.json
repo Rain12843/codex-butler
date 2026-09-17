@@ -1,14 +1,16 @@
 {
   "name": "codex-butler",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A productivity and diagnostics layer for OpenAI Codex.",
   "type": "module",
   "bin": { "codex-butler": "dist/cli.js" },
+  "files": ["dist"],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "npm run build && node --test dist/core/config.test.js"
   },
   "engines": { "node": ">=20" },
   "dependencies": {
