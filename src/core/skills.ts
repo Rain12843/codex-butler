@@ -308,3 +308,14 @@ export async function importSkillDirectory(sourcePath: string, forceOrName?: boo
 export function formatSkills(): string {
   return builtInSkills.map((skill) => `- ${skill.name}: ${skill.description}`).join("\n");
 }
+
+/** List built-in skills with [installed] markers for the given installed names. */
+export function formatSkillsWithStatus(installed: string[]): string {
+  const set = new Set(installed);
+  return builtInSkills
+    .map((skill) => {
+      const mark = set.has(skill.name) ? "[installed]" : "[available]";
+      return `- ${skill.name} ${mark}: ${skill.description}`;
+    })
+    .join("\n");
+}

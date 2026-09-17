@@ -80,3 +80,25 @@ export function formatTaskPlan(plan: TaskPlan): string {
   const section = (title: string, items: string[]) => `## ${title}\n${items.map((item, index) => `${index + 1}. ${item}`).join("\n")}`;
   return [`# Codex Task Plan\n\n**Objective:** ${plan.objective}`, section("Context", plan.context), section("Constraints", plan.constraints), section("Inspect first", plan.inspection), section("Implementation", plan.steps), section("Validation", plan.validation), section("Risks", plan.risks)].join("\n\n") + "\n";
 }
+
+/** Compact prompt ready to paste into Codex CLI / IDE. */
+export function formatCodexPrompt(plan: TaskPlan): string {
+  const bullets = (title: string, items: string[]) => `${title}:\n${items.map((item) => `- ${item}`).join("\n")}`;
+  return [
+    `Task: ${plan.objective}`,
+    "",
+    bullets("Context", plan.context),
+    "",
+    bullets("Constraints", plan.constraints),
+    "",
+    bullets("Inspect first", plan.inspection),
+    "",
+    bullets("Implementation steps", plan.steps),
+    "",
+    bullets("Validation", plan.validation),
+    "",
+    bullets("Risks", plan.risks),
+    "",
+    "Follow the repository's existing conventions. Prefer small, reviewable changes. Do not commit secrets."
+  ].join("\n") + "\n";
+}
