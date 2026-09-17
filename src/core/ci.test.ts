@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatWorkflowDiagnosis, formatWorkflowRuns, type WorkflowDiagnosis, type WorkflowRunSummary } from "./ci.js";
+import { analyzeWorkflowLog, formatWorkflowDiagnosis, formatWorkflowRuns, type WorkflowDiagnosis, type WorkflowRunSummary } from "./ci.js";
 
 test("workflow formatter produces a compact diagnostics table", () => {
   const runs: WorkflowRunSummary[] = [{
@@ -35,6 +35,19 @@ test("workflow formatter escapes table-breaking content", () => {
   assert.match(output, /CI \\| nightly/);
   assert.match(output, /feature\/a\\|b/);
   assert.doesNotMatch(output, /03:00:00Z\nextra/);
+});
+
+test("workflow log analyzer classifies TypeScript failures and extracts steps", () => {
+  const result = analyzeWorkflowLog("##[group]Run npm run check\nerror TS2322: Type 'unknown' is not assignable\n##[endgroup]");
+  assert.equal(result.category, "TypeScript");
+  assert.deepEqual(result.failedSteps, ["npm run check"]);
+  assert.match(result.logExcerpt, /TS2322/);
+});
+
+test("workflow log analyzer classifies test failures", () => {
+  const result = analyzeWorkflowLog("##[group]Run npm test\nAssertionError: expected 1 to equal 2\n");
+  assert.equal(result.category, "Tests");
+  assert.match(result.likelyCause, /test or assertion/i);
 });
 
 test("workflow diagnosis formatter marks logs as untrusted", () => {
