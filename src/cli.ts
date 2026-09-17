@@ -11,6 +11,7 @@ import { auditSkillDirectory } from "./core/skill-audit.js";
 import { formatTaskPlan, planGitHubContext, planTask } from "./core/planner.js";
 import { formatGitHubContext, getIssueContext, getPullRequestContext, analyzePullRequestDiff, formatPullRequestDiffAnalysis } from "./core/github.js";
 import { diagnoseWorkflowRun, formatWorkflowDiagnosis, formatWorkflowRuns, getRecentWorkflowRuns } from "./core/ci.js";
+import { formatPullRequestReview, reviewPullRequest } from "./core/pr-review.js";
 
 const program = new Command();
 program.name("codex-butler").description("A productivity and diagnostics layer for OpenAI Codex").version("0.6.0");
@@ -82,6 +83,10 @@ github.command("pr-plan <number>").description("Turn a GitHub pull request into 
 });
 github.command("pr-diff <number>").description("Analyze a pull request diff for change scope and risky patterns").action(async (number: string) => {
   try { console.log(formatPullRequestDiffAnalysis(await analyzePullRequestDiff(Number(number)))); }
+  catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
+});
+github.command("pr-review <number>").description("Run deterministic review checks against a pull request diff").action(async (number: string) => {
+  try { console.log(formatPullRequestReview(await reviewPullRequest(Number(number)))); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 github.command("ci").description("Show recent GitHub Actions workflow runs").option("-n, --limit <number>", "number of runs to inspect", "10").action(async (options: { limit: string }) => {
