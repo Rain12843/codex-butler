@@ -72,7 +72,6 @@ github.command("pr <number>").description("Show a pull request as structured con
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 
-a const_placeholder;
 const skills = program.command("skills").description("Manage reusable Codex Butler skills");
 skills.command("list").description("List available and installed skills").action(async () => {
   console.log(pc.bold("Available skills"));
