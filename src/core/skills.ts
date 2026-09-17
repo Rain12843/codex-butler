@@ -81,20 +81,21 @@ export async function validateSkillTree(source: string): Promise<SkillFile[]> {
   let totalBytes = 0;
 
   async function walk(directory: string): Promise<void> {
+    const directoryStat = await lstat(directory);
+    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) throw new Error(`Skill source directory changed during validation: ${relative(sourcePath, directory)}`);
     for (const entry of await readdir(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
-      if (entry.isSymbolicLink()) throw new Error(`Skill source cannot contain symlinks: ${relative(sourcePath, path)}`);
-      if (entry.isDirectory()) {
+      const entryStat = await lstat(path);
+      if (entryStat.isSymbolicLink()) throw new Error(`Skill source cannot contain symlinks: ${relative(sourcePath, path)}`);
+      if (entryStat.isDirectory()) {
         await walk(path);
         continue;
       }
-      if (!entry.isFile()) throw new Error(`Unsupported skill source entry: ${relative(sourcePath, path)}`);
-      const fileStat = await lstat(path);
-      if (!fileStat.isFile() || fileStat.isSymbolicLink()) throw new Error(`Skill source entry changed during validation: ${relative(sourcePath, path)}`);
-      if (fileStat.size > MAX_SKILL_FILE_BYTES) throw new Error(`Skill file exceeds ${MAX_SKILL_FILE_BYTES} bytes: ${relative(sourcePath, path)}`);
-      totalBytes += fileStat.size;
+      if (!entryStat.isFile()) throw new Error(`Unsupported skill source entry: ${relative(sourcePath, path)}`);
+      if (entryStat.size > MAX_SKILL_FILE_BYTES) throw new Error(`Skill file exceeds ${MAX_SKILL_FILE_BYTES} bytes: ${relative(sourcePath, path)}`);
+      totalBytes += entryStat.size;
       if (totalBytes > MAX_SKILL_TOTAL_BYTES) throw new Error(`Skill source exceeds ${MAX_SKILL_TOTAL_BYTES} total bytes`);
-      files.push({ relativePath: relative(sourcePath, path), size: fileStat.size });
+      files.push({ relativePath: relative(sourcePath, path), size: entryStat.size });
       if (files.length > MAX_SKILL_FILES) throw new Error(`Skill source exceeds ${MAX_SKILL_FILES} files`);
     }
   }
