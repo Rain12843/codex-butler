@@ -30,6 +30,7 @@ codex-butler init [--force]
 codex-butler plan "<task>"
 codex-butler github issue <number>
 codex-butler github pr <number>
+codex-butler github ci [-n <number>]
 codex-butler skills
 codex-butler skills list
 codex-butler skills path
@@ -47,6 +48,7 @@ codex-butler config mode <mode>
 - `init` — recursively inspect the project (while skipping generated/dependency directories), detect the package manager and common language/tooling files, generate `AGENTS.md`, and initialize `.codex-butler/` project memory.
 - `plan` — turn a plain-language task into a deterministic work plan covering inspection, implementation, validation, and risks. It performs no network calls and does not execute the task.
 - `github issue` / `github pr` — read issue or pull-request context through the locally installed GitHub CLI. Butler passes fixed argument lists to `gh` and does not invoke a shell or execute content from the issue/PR body.
+- `github ci` — show recent GitHub Actions workflow runs and their status, branch, commit, and creation time. It is read-only and uses the local GitHub CLI.
 - `skills` — browse built-in skills.
 - `skills install` — install a reviewable local skill template. Existing skills are protected from accidental overwrite unless `--force` is supplied.
 - `skills audit` — scan an installed `SKILL.md` for common risky patterns such as remote shell execution, destructive commands, instruction-override attempts, and credential-like content.
@@ -98,10 +100,10 @@ CI runs type checking, builds, and tests on pushes to `main` and pull requests.
 - [x] Skill security audit foundation
 - [x] Deterministic task planner foundation
 - [x] GitHub issue / PR context foundation
+- [x] GitHub Actions diagnostics foundation
 - [ ] Skill registry with signed/verified sources
 - [ ] Codex configuration deep inspection
 - [ ] GitHub issue / PR action workflows
-- [ ] CI failure diagnostics
 - [ ] Interactive setup wizard
 - [ ] Workflow presets
 - [ ] AI-assisted task planner / prompt translator
