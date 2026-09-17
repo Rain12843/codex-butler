@@ -1,4 +1,4 @@
-import { access, cp, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { access, copyFile, lstat, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
@@ -67,8 +67,17 @@ export async function removeSkill(name: string): Promise<void> {
   await rm(target, { recursive: true, force: true });
 }
 
-async function validateSkillTree(sourcePath: string): Promise<void> {
-  let fileCount = 0;
+interface SkillFile {
+  relativePath: string;
+  size: number;
+}
+
+export async function validateSkillTree(source: string): Promise<SkillFile[]> {
+  const sourcePath = resolve(source);
+  const rootStat = await lstat(sourcePath);
+  if (!rootStat.isDirectory()) throw new Error("Skill source must be a directory");
+
+  const files: SkillFile[] = [];
   let totalBytes = 0;
 
   async function walk(directory: string): Promise<void> {
@@ -80,22 +89,25 @@ async function validateSkillTree(sourcePath: string): Promise<void> {
         continue;
       }
       if (!entry.isFile()) throw new Error(`Unsupported skill source entry: ${relative(sourcePath, path)}`);
-      fileCount += 1;
-      if (fileCount > MAX_SKILL_FILES) throw new Error(`Skill source exceeds ${MAX_SKILL_FILES} files`);
-      const fileStat = await stat(path);
+      const fileStat = await lstat(path);
+      if (!fileStat.isFile()) throw new Error(`Skill source entry changed during validation: ${relative(sourcePath, path)}`);
       if (fileStat.size > MAX_SKILL_FILE_BYTES) throw new Error(`Skill file exceeds ${MAX_SKILL_FILE_BYTES} bytes: ${relative(sourcePath, path)}`);
       totalBytes += fileStat.size;
       if (totalBytes > MAX_SKILL_TOTAL_BYTES) throw new Error(`Skill source exceeds ${MAX_SKILL_TOTAL_BYTES} total bytes`);
+      files.push({ relativePath: relative(sourcePath, path), size: fileStat.size });
+      if (files.length > MAX_SKILL_FILES) throw new Error(`Skill source exceeds ${MAX_SKILL_FILES} files`);
     }
   }
 
   await walk(sourcePath);
+  return files;
 }
 
 export async function importSkillDirectory(source: string, name = basename(resolve(source)), force = false): Promise<string> {
   assertSafeName(name);
   const sourcePath = resolve(source);
   try { await access(join(sourcePath, "SKILL.md"), constants.R_OK); } catch { throw new Error("Source directory must contain SKILL.md"); }
+
   const target = resolve(getSkillPath(name));
   const skillsRoot = resolve(getSkillsPath());
   const sourceRelativeToTarget = relative(target, sourcePath);
@@ -103,14 +115,27 @@ export async function importSkillDirectory(source: string, name = basename(resol
   if (sourcePath === target || !sourceRelativeToTarget.startsWith("..") || !targetRelativeToSource.startsWith("..")) {
     throw new Error("Skill source and target must be separate directories");
   }
-  await validateSkillTree(sourcePath);
+  if (!relative(skillsRoot, target).startsWith(".") && relative(skillsRoot, target) !== "") {
+    throw new Error("Invalid skill target path");
+  }
+
+  const files = await validateSkillTree(sourcePath);
   await mkdir(skillsRoot, { recursive: true });
   if (!force) {
     try { await access(target, constants.F_OK); throw new Error(`Skill already exists: ${name}. Use --force to replace it.`); }
     catch (error) { if (error instanceof Error && error.message.startsWith("Skill already exists:")) throw error; }
   }
+
   await rm(target, { recursive: true, force: true });
-  await cp(sourcePath, target, { recursive: true, verbatimSymlinks: true, dereference: false });
+  await mkdir(target, { recursive: true });
+  for (const file of files) {
+    const sourceFile = join(sourcePath, file.relativePath);
+    const targetFile = join(target, file.relativePath);
+    const current = await lstat(sourceFile);
+    if (!current.isFile() || current.isSymbolicLink()) throw new Error(`Skill source changed during import: ${file.relativePath}`);
+    await mkdir(resolve(targetFile, ".."), { recursive: true });
+    await copyFile(sourceFile, targetFile);
+  }
   return target;
 }
 
