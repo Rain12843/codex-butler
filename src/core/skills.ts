@@ -111,11 +111,18 @@ export const builtInSkills: SkillDefinition[] = (Object.keys(skillGuidance) as S
   guidance: skillGuidance[name],
 }));
 
+function assertSafeName(name: string): void {
+  if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) {
+    throw new Error(`Invalid skill name: ${name}`);
+  }
+}
+
 export function getSkillsPath(): string {
   return join(homedir(), ".agents", "skills");
 }
 
 export function getSkillPath(name: string): string {
+  assertSafeName(name);
   return join(getSkillsPath(), name);
 }
 
@@ -125,6 +132,7 @@ function skillMarkdown(skill: SkillDefinition): string {
 }
 
 export async function installSkill(name: SkillCategory, force = false): Promise<string> {
+  assertSafeName(name);
   const skill = builtInSkills.find((s) => s.name === name);
   if (!skill) throw new Error(`Unknown skill: ${name}`);
   const targetDir = getSkillPath(name);
@@ -134,7 +142,6 @@ export async function installSkill(name: SkillCategory, force = false): Promise<
     if (!force) throw new Error(`Skill already exists at ${targetFile}. Use --force to overwrite.`);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !(error instanceof Error && error.message.includes("already exists"))) {
-      // fall through only for missing file
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
@@ -154,29 +161,36 @@ export async function listInstalledSkills(): Promise<string[]> {
 }
 
 export async function removeSkill(name: string): Promise<void> {
+  assertSafeName(name);
   const target = getSkillPath(name);
   await rm(target, { recursive: true, force: true });
 }
 
-const MAX_SKILL_FILES = 50;
-const MAX_SKILL_BYTES = 512 * 1024;
+const MAX_SKILL_FILES = 64;
+const MAX_SKILL_BYTES = 256 * 1024;
 
-async function validateSkillTree(source: string): Promise<void> {
-  let fileCount = 0;
+export interface SkillTreeFile {
+  relativePath: string;
+  size: number;
+}
+
+export async function validateSkillTree(source: string): Promise<SkillTreeFile[]> {
+  const files: SkillTreeFile[] = [];
   let totalBytes = 0;
   async function walk(dir: string): Promise<void> {
     const entries = await readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
       const full = join(dir, entry.name);
       const st = await lstat(full);
-      if (st.isSymbolicLink()) throw new Error(`Symlinks are not allowed in skill trees: ${relative(source, full)}`);
+      if (st.isSymbolicLink()) throw new Error(`Skill tree cannot contain symlinks: ${relative(source, full)}`);
       if (st.isDirectory()) {
         await walk(full);
       } else if (st.isFile()) {
-        fileCount += 1;
+        files.push({ relativePath: relative(source, full), size: st.size });
         totalBytes += st.size;
-        if (fileCount > MAX_SKILL_FILES) throw new Error(`Skill tree exceeds ${MAX_SKILL_FILES} files`);
-        if (totalBytes > MAX_SKILL_BYTES) throw new Error(`Skill tree exceeds ${MAX_SKILL_BYTES} bytes`);
+        if (files.length > MAX_SKILL_FILES) throw new Error(`Skill tree exceeds ${MAX_SKILL_FILES} files`);
+        if (st.size > MAX_SKILL_BYTES) throw new Error(`Skill file exceeds ${MAX_SKILL_BYTES} bytes`);
+        if (totalBytes > MAX_SKILL_BYTES * 2) throw new Error(`Skill tree exceeds size limit`);
       } else {
         throw new Error(`Unsupported file type in skill tree: ${relative(source, full)}`);
       }
@@ -189,11 +203,13 @@ async function validateSkillTree(source: string): Promise<void> {
   } catch {
     throw new Error("Skill directory must contain SKILL.md at the root");
   }
+  return files;
 }
 
 export async function importSkillDirectory(sourcePath: string, force = false): Promise<string> {
   const source = resolve(sourcePath);
   const name = basename(source);
+  assertSafeName(name);
   await validateSkillTree(source);
   const targetDir = getSkillPath(name);
   try {
@@ -205,7 +221,6 @@ export async function importSkillDirectory(sourcePath: string, force = false): P
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
-  // Atomic-ish install via staging directory then rename
   const stagingParent = dirname(targetDir);
   await mkdir(stagingParent, { recursive: true });
   const staging = await mkdtemp(join(stagingParent, `.${name}-staging-`));
