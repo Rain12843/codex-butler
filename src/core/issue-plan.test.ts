@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { planGitHubContext } from "./issue-plan.js";
+import { planGitHubContext } from "./planner.js";
 
 test("planGitHubContext preserves issue title and adds issue-aware inspection", () => {
   const plan = planGitHubContext({ kind: "issue", number: 7, title: "Fix login error", state: "open", body: "Users report a failing API endpoint", url: "https://github.com/example/example/issues/7" });
