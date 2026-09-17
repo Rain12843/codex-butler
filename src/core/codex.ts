@@ -55,7 +55,12 @@ async function readText(path: string): Promise<string | null> {
 
 /** Extract a top-level TOML string/bare value without a full parser. */
 export function extractTomlValue(text: string, key: string): string | null {
-  const re = new RegExp(`(?:^|\n)\s*${key}\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\n#]+))`, "m");
+  // Escape key for regex, then match quoted or bare TOML values.
+  const safeKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(
+    "(?:^|\\n)\\s*" + safeKey + "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\n#]+))",
+    "m"
+  );
   const match = text.match(re);
   if (!match) return null;
   const value = (match[1] ?? match[2] ?? match[3] ?? "").trim();
