@@ -34,6 +34,7 @@ codex-butler doctor
 codex-butler status
 codex-butler init
 codex-butler skills install testing
+codex-butler skills show testing
 ```
 
 Typical daily flow:
@@ -58,12 +59,14 @@ codex-butler github pr <number>
 codex-butler github issue-plan <number>
 codex-butler github pr-plan <number>
 codex-butler github pr-review <number>
-codex-butler github runs
+codex-butler github ci
 codex-butler github ci-diagnose [run-id]
 codex-butler skills
-codex-butler skills install <name> [--force]
-codex-butler skills import <path> [--force]
 codex-butler skills list
+codex-butler skills show <name>
+codex-butler skills install <name> [--force]
+codex-butler skills install-all [--force]
+codex-butler skills import <path> [--name <name>] [--force]
 codex-butler skills audit <name>
 codex-butler skills remove <name>
 codex-butler config show
@@ -78,11 +81,13 @@ codex-butler config mode <mode>
 - `github issue` / `github pr` — read issue or pull-request context through the locally installed GitHub CLI. Butler passes fixed argument lists to `gh` and does not invoke a shell or execute content from the issue/PR body.
 - `github issue-plan` / `github pr-plan` — combine GitHub context with Butler's deterministic planner.
 - `github pr-review` — produce a structured review checklist from PR metadata and changed files.
-- `github runs` — list recent workflow runs and their status, branch, commit, and creation time. It is read-only and uses the local GitHub CLI.
+- `github ci` — list recent workflow runs and their status, branch, commit, and creation time. It is read-only and uses the local GitHub CLI.
 - `github ci-diagnose` — inspect failed-step logs for a workflow run and produce deterministic diagnostics: failed steps, a coarse error category, likely cause, next actions, and a bounded untrusted log excerpt. If no run ID is supplied, Butler selects the most recent failed run among the last 10 runs; an explicit run ID also loads its workflow metadata.
-- `skills` — browse built-in skills with practical checklists for common domains.
+- `skills` / `skills list` — browse built-in skills with practical checklists for common domains.
+- `skills show` — preview a built-in skill template or an already-installed `SKILL.md`.
 - `skills install` — install a reviewable local skill template into Codex's user skill discovery directory (`~/.agents/skills`). Existing skills are protected from accidental overwrite unless `--force` is supplied.
-- `skills import` — import a local `SKILL.md` directory after validating that it contains only regular files, no symlinks, and stays within file-count and size limits.
+- `skills install-all` — install every built-in skill in one pass (skips existing skills unless `--force`).
+- `skills import` — import a local `SKILL.md` directory after validating that it contains only regular files, no symlinks, and stays within file-count and size limits. Use `--name` to choose the installed skill name.
 - `skills audit` — scan an installed `SKILL.md` for common risky patterns such as remote shell execution, destructive commands, instruction-override attempts, and credential-like content.
 - `config` — manage Butler's local configuration and default operating mode.
 
@@ -96,7 +101,7 @@ Butler is intentionally conservative:
 - Skill audit is heuristic and advisory; it does not claim to prove safety.
 - Project memory under `.codex-butler/` is gitignored by default.
 
-Built-in and imported skills are installed under `~/.agents/skills/`, which is a Codex skill discovery path.
+Built-in and imported skills are installed under `~/.agents/skills/`, which is a Codex skill discovery path (user scope).
 
 ## Project memory
 
@@ -125,6 +130,7 @@ CI runs type checking, builds, and tests on pushes to `main` and pull requests.
 - [x] Practical built-in skill checklists
 - [x] Project scan safety limits
 - [x] Compact status command
+- [x] Skills show / install-all / named import
 - [ ] Skill registry with signed/verified sources
 - [ ] Codex configuration deep inspection
 - [ ] GitHub issue / PR action workflows
