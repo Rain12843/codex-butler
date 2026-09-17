@@ -30,6 +30,7 @@ codex-butler init [--force]
 codex-butler plan "<task>"
 codex-butler github issue <number>
 codex-butler github pr <number>
+codex-butler github pr-diff <number>
 codex-butler github ci [-n <number>]
 codex-butler github ci-diagnose [runId]
 codex-butler skills
@@ -49,6 +50,7 @@ codex-butler config mode <mode>
 - `init` — recursively inspect the project (while skipping generated/dependency directories), detect the package manager and common language/tooling files, generate `AGENTS.md`, and initialize `.codex-butler/` project memory.
 - `plan` — turn a plain-language task into a deterministic work plan covering inspection, implementation, validation, and risks. It performs no network calls and does not execute the task.
 - `github issue` / `github pr` — read issue or pull-request context through the locally installed GitHub CLI. Butler passes fixed argument lists to `gh` and does not invoke a shell or execute content from the issue/PR body.
+- `github pr-diff` — inspect a PR patch and report changed files, additions/deletions, and heuristic warnings for credential-like content, remote shell execution, broad deletion, elevated privileges, lockfile drift, and sensitive files. The diff excerpt is bounded and explicitly treated as untrusted content.
 - `github ci` — show recent GitHub Actions workflow runs and their status, branch, commit, and creation time. It is read-only and uses the local GitHub CLI.
 - `github ci-diagnose` — inspect failed-step logs for a workflow run and produce deterministic diagnostics: failed steps, a coarse error category, likely cause, next actions, and a bounded untrusted log excerpt. If no run ID is supplied, Butler selects the most recent failed run among the last 10 runs.
 - `skills` — browse built-in skills.
@@ -60,7 +62,7 @@ codex-butler config mode <mode>
 
 Skills are instructions, not trusted executable programs. Butler's built-in installer writes plain-text `SKILL.md` files and does not execute their contents. Imported or downloaded skills should be treated as untrusted input and audited before use. The audit is heuristic rather than a security guarantee; it can produce false positives and cannot prove that a skill is safe.
 
-Workflow logs, Issue bodies, PR bodies, and other external GitHub content are also untrusted input. CI diagnosis only classifies text locally; it does not execute commands found in logs or treat log content as trusted instructions.
+Workflow logs, Issue bodies, PR bodies, diffs, and other external GitHub content are also untrusted input. CI and PR diagnostics only classify text locally; they do not execute commands found in logs or diffs or treat external content as trusted instructions.
 
 ### Operating modes
 
@@ -104,6 +106,7 @@ CI runs type checking, builds, and tests on pushes to `main` and pull requests.
 - [x] GitHub issue / PR context foundation
 - [x] GitHub Actions diagnostics foundation
 - [x] CI failure diagnosis foundation
+- [x] GitHub PR diff analysis foundation
 - [ ] Skill registry with signed/verified sources
 - [ ] Codex configuration deep inspection
 - [ ] GitHub issue / PR action workflows
