@@ -31,10 +31,15 @@ function parseContext(raw: string, kind: GitHubContext["kind"]): GitHubContext {
   try { value = JSON.parse(raw); } catch { throw new Error("GitHub CLI returned invalid JSON"); }
   if (!value || typeof value !== "object") throw new Error("GitHub CLI returned an invalid object");
   const item = value as Record<string, unknown>;
-  if (!Number.isInteger(item.number) || typeof item.title !== "string" || typeof item.state !== "string" || typeof item.body !== "string" || typeof item.url !== "string") {
+  const number = item.number;
+  const title = item.title;
+  const state = item.state;
+  const body = item.body;
+  const url = item.url;
+  if (!Number.isInteger(number) || typeof title !== "string" || typeof state !== "string" || typeof body !== "string" || typeof url !== "string") {
     throw new Error("GitHub CLI returned incomplete issue/PR data");
   }
-  return { kind, number: item.number, title: item.title, state: item.state, body: item.body, url: item.url };
+  return { kind, number, title, state, body, url };
 }
 
 export async function getIssueContext(number: number): Promise<GitHubContext> {
