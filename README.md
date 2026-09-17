@@ -33,6 +33,7 @@ codex-butler github issue-plan <number>
 codex-butler github pr <number>
 codex-butler github pr-plan <number>
 codex-butler github pr-diff <number>
+codex-butler github pr-review <number>
 codex-butler github ci [-n <number>]
 codex-butler github ci-diagnose [runId]
 codex-butler skills
@@ -55,6 +56,7 @@ codex-butler config mode <mode>
 - `github issue` / `github pr` — read issue or pull-request context through the locally installed GitHub CLI. Butler passes fixed argument lists to `gh` and does not invoke a shell or execute content from the issue/PR body.
 - `github issue-plan` / `github pr-plan` — combine GitHub context with Butler's deterministic planner. External issue/PR text is treated as untrusted requirements that must be verified against the repository.
 - `github pr-diff` — inspect a PR patch and report changed files, additions/deletions, and heuristic warnings for credential-like content, remote shell execution, broad deletion, elevated privileges, lockfile drift, and sensitive files. The diff excerpt is bounded and explicitly treated as untrusted content.
+- `github pr-review` — run deterministic review checks over a PR diff, including risky-pattern findings, large-change notes, dependency metadata notes, and missing-obvious-test-file notes. It is heuristic and does not replace human review.
 - `github ci` — show recent GitHub Actions workflow runs and their status, branch, commit, and creation time. It is read-only and uses the local GitHub CLI.
 - `github ci-diagnose` — inspect failed-step logs for a workflow run and produce deterministic diagnostics: failed steps, a coarse error category, likely cause, next actions, and a bounded untrusted log excerpt. If no run ID is supplied, Butler selects the most recent failed run among the last 10 runs.
 - `skills` — browse built-in skills.
@@ -112,6 +114,7 @@ CI runs type checking, builds, and tests on pushes to `main` and pull requests.
 - [x] GitHub Actions diagnostics foundation
 - [x] CI failure diagnosis foundation
 - [x] GitHub PR diff analysis foundation
+- [x] GitHub PR review foundation
 - [x] GitHub issue / PR planning foundation
 - [x] Imported skill tree hardening foundation
 - [ ] Skill registry with signed/verified sources
