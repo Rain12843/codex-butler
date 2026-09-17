@@ -1,13 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { builtInSkills, getSkillPath, validateSkillTree } from "./skills.js";
+import { builtInSkills, getSkillPath, getSkillsPath, validateSkillTree } from "./skills.js";
 
 test("built-in skills use safe names", () => {
   assert.equal(builtInSkills.length > 0, true);
   for (const skill of builtInSkills) assert.match(skill.name, /^[a-z0-9][a-z0-9-]{0,63}$/);
+});
+
+test("skills use Codex's user discovery directory", () => {
+  assert.equal(getSkillsPath(), join(homedir(), ".agents", "skills"));
+  assert.equal(getSkillPath("testing"), join(homedir(), ".agents", "skills", "testing"));
 });
 
 test("getSkillPath rejects traversal names", () => {
