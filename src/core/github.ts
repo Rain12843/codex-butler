@@ -48,7 +48,7 @@ function parseContext(raw: string, kind: GitHubContext["kind"]): GitHubContext {
   const state = item.state;
   const body = item.body;
   const url = item.url;
-  if (!Number.isInteger(number) || typeof title !== "string" || typeof state !== "string" || typeof body !== "string" || typeof url !== "string") {
+  if (typeof number !== "number" || !Number.isInteger(number) || typeof title !== "string" || typeof state !== "string" || typeof body !== "string" || typeof url !== "string") {
     throw new Error("GitHub CLI returned incomplete issue/PR data");
   }
   return { kind, number, title, state, body, url };
@@ -96,15 +96,7 @@ export function analyzeDiffText(number: number, diff: string): PullRequestDiffAn
   if (changedFiles.some((file) => /(^|\/)(\.env|.*\.pem|.*\.key)$/.test(file))) warnings.add("The diff changes a potentially sensitive environment or key file.");
 
   const lines = diff.split("\n").filter((line) => line.trim());
-  return {
-    number,
-    filesChanged: changedFiles.length,
-    additions,
-    deletions,
-    changedFiles: changedFiles.slice(0, 100),
-    warnings: [...warnings],
-    diffExcerpt: lines.slice(0, 120).join("\n").slice(0, 12000)
-  };
+  return { number, filesChanged: changedFiles.length, additions, deletions, changedFiles: changedFiles.slice(0, 100), warnings: [...warnings], diffExcerpt: lines.slice(0, 120).join("\n").slice(0, 12000) };
 }
 
 export async function analyzePullRequestDiff(number: number): Promise<PullRequestDiffAnalysis> {
