@@ -12,7 +12,7 @@ import { formatTaskPlan, planTask } from "./core/planner.js";
 import { formatGitHubContext, getIssueContext, getPullRequestContext } from "./core/github.js";
 
 const program = new Command();
-program.name("codex-butler").description("A productivity and diagnostics layer for OpenAI Codex").version("0.4.0");
+program.name("codex-butler").description("A productivity and diagnostics layer for OpenAI Codex").version("0.5.0");
 
 program.command("doctor").description("Diagnose the local Codex development environment").action(async () => {
   console.log(pc.bold("Codex Butler Doctor"));
