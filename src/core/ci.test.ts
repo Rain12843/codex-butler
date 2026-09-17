@@ -20,3 +20,19 @@ test("workflow formatter produces a compact diagnostics table", () => {
 test("workflow formatter handles an empty repository", () => {
   assert.match(formatWorkflowRuns([]), /No workflow runs found/);
 });
+
+test("workflow formatter escapes table-breaking content", () => {
+  const output = formatWorkflowRuns([{
+    databaseId: 1,
+    name: "CI | nightly",
+    status: "completed",
+    conclusion: "success",
+    branch: "feature/a|b",
+    commit: "1234567890",
+    url: "https://example.test",
+    createdAt: "2026-09-17T03:00:00Z\nextra"
+  }]);
+  assert.match(output, /CI \\| nightly/);
+  assert.match(output, /feature\/a\\|b/);
+  assert.doesNotMatch(output, /03:00:00Z\nextra/);
+});
