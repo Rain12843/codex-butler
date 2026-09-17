@@ -1,9 +1,22 @@
-import { access, copyFile, lstat, mkdir, mkdtemp, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { access, copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 
-export type SkillCategory = "frontend" | "backend" | "database" | "testing" | "security" | "refactoring" | "git" | "github" | "docker" | "python" | "react" | "flutter" | "devops";
+export type SkillCategory =
+  | "frontend"
+  | "backend"
+  | "database"
+  | "testing"
+  | "security"
+  | "refactoring"
+  | "git"
+  | "github"
+  | "docker"
+  | "python"
+  | "react"
+  | "flutter"
+  | "devops";
 
 export interface SkillDefinition {
   name: SkillCategory;
@@ -117,6 +130,10 @@ function assertSafeName(name: string): void {
   }
 }
 
+function isSkillCategory(name: string): name is SkillCategory {
+  return builtInSkills.some((skill) => skill.name === name);
+}
+
 export function getSkillsPath(): string {
   return join(homedir(), ".agents", "skills");
 }
@@ -131,10 +148,12 @@ function skillMarkdown(skill: SkillDefinition): string {
   return `---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n\n# ${skill.name}\n\n${skill.description}\n\n## Checklist\n\n${checklist}\n`;
 }
 
-export async function installSkill(name: SkillCategory, force = false): Promise<string> {
+export async function installSkill(name: string, force = false): Promise<string> {
   assertSafeName(name);
-  const skill = builtInSkills.find((s) => s.name === name);
-  if (!skill) throw new Error(`Unknown skill: ${name}`);
+  if (!isSkillCategory(name)) {
+    throw new Error(`Unknown skill: ${name}. Run "codex-butler skills" to list available names.`);
+  }
+  const skill = builtInSkills.find((s) => s.name === name)!;
   const targetDir = getSkillPath(name);
   const targetFile = join(targetDir, "SKILL.md");
   try {
@@ -148,6 +167,21 @@ export async function installSkill(name: SkillCategory, force = false): Promise<
   await mkdir(targetDir, { recursive: true });
   await writeFile(targetFile, skillMarkdown(skill), "utf8");
   return targetFile;
+}
+
+export async function installAllSkills(force = false): Promise<string[]> {
+  const installed: string[] = [];
+  for (const skill of builtInSkills) {
+    try {
+      installed.push(await installSkill(skill.name, force));
+    } catch (error) {
+      if (error instanceof Error && /already exists/.test(error.message) && !force) {
+        continue;
+      }
+      throw error;
+    }
+  }
+  return installed;
 }
 
 export async function listInstalledSkills(): Promise<string[]> {
@@ -164,6 +198,20 @@ export async function removeSkill(name: string): Promise<void> {
   assertSafeName(name);
   const target = getSkillPath(name);
   await rm(target, { recursive: true, force: true });
+}
+
+export async function showSkill(name: string): Promise<string> {
+  assertSafeName(name);
+  if (isSkillCategory(name)) {
+    const skill = builtInSkills.find((s) => s.name === name)!;
+    return skillMarkdown(skill);
+  }
+  const skillFile = join(getSkillPath(name), "SKILL.md");
+  try {
+    return await readFile(skillFile, "utf8");
+  } catch {
+    throw new Error(`Skill not found: ${name}. Install a built-in skill or import a local SKILL.md directory.`);
+  }
 }
 
 const MAX_SKILL_FILES = 64;
@@ -206,21 +254,33 @@ export async function validateSkillTree(source: string): Promise<SkillTreeFile[]
   return files;
 }
 
-export async function importSkillDirectory(sourcePath: string, force = false): Promise<string> {
+export async function importSkillDirectory(sourcePath: string, forceOrName?: boolean | string, force = false): Promise<string> {
   const source = resolve(sourcePath);
-  const name = basename(source);
+  let name: string;
+  let overwrite = force;
+
+  if (typeof forceOrName === "string") {
+    name = forceOrName;
+    overwrite = force;
+  } else {
+    name = basename(source);
+    overwrite = forceOrName === true;
+  }
+
   assertSafeName(name);
   await validateSkillTree(source);
   const targetDir = getSkillPath(name);
+
   try {
     await access(targetDir, constants.F_OK);
-    if (!force) throw new Error(`Skill already exists at ${targetDir}. Use --force to overwrite.`);
+    if (!overwrite) throw new Error(`Skill already exists at ${targetDir}. Use --force to overwrite.`);
     await rm(targetDir, { recursive: true, force: true });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !(error instanceof Error && /already exists/.test(error.message))) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
+
   const stagingParent = dirname(targetDir);
   await mkdir(stagingParent, { recursive: true });
   const staging = await mkdtemp(join(stagingParent, `.${name}-staging-`));
