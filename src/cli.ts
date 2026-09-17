@@ -16,7 +16,7 @@ import {
   showSkill,
 } from "./core/skills.js";
 import { ensureConfig, getConfigPath, loadConfig, saveConfig, isButlerMode } from "./core/config.js";
-import { inspectCodex } from "./core/codex.js";
+import { formatCodexConfigSummary, inspectCodex, inspectCodexConfig } from "./core/codex.js";
 import { auditSkillDirectory } from "./core/skill-audit.js";
 import { formatTaskPlan, planGitHubContext, planTask } from "./core/planner.js";
 import {
@@ -39,7 +39,7 @@ const program = new Command();
 program
   .name("codex-butler")
   .description("A productivity and diagnostics layer for OpenAI Codex")
-  .version("0.7.1");
+  .version("0.8.0");
 
 function parsePositiveInteger(value: string, label: string): number {
   if (!/^\d+$/.test(value)) throw new Error(`${label} must be a positive integer`);
@@ -60,6 +60,18 @@ program.command("doctor").description("Diagnose the local Codex development envi
     console.log(`${icon} ${result.name}: ${result.detail}`);
   }
 });
+
+program
+  .command("codex-config")
+  .description("Summarize ~/.codex/config.toml (model, sandbox, approval, MCP)")
+  .action(async () => {
+    try {
+      console.log(formatCodexConfigSummary(await inspectCodexConfig(process.cwd())));
+    } catch (error) {
+      console.error(pc.red(error instanceof Error ? error.message : String(error)));
+      process.exitCode = 1;
+    }
+  });
 
 program.command("setup").description("Initialize Butler configuration and show the setup checklist").action(async () => {
   const config = await ensureConfig();
@@ -177,18 +189,27 @@ github.command("pr-review <number>").description("Run deterministic review check
     process.exitCode = 1;
   }
 });
+
+async function listRuns(options: { limit: string }) {
+  try {
+    console.log(formatWorkflowRuns(await getRecentWorkflowRuns(parsePositiveInteger(options.limit, "Workflow limit"))));
+  } catch (error) {
+    console.error(pc.red(error instanceof Error ? error.message : String(error)));
+    process.exitCode = 1;
+  }
+}
+
 github
   .command("ci")
   .description("Show recent GitHub Actions workflow runs")
   .option("-n, --limit <number>", "number of runs to inspect", "10")
-  .action(async (options: { limit: string }) => {
-    try {
-      console.log(formatWorkflowRuns(await getRecentWorkflowRuns(parsePositiveInteger(options.limit, "Workflow limit"))));
-    } catch (error) {
-      console.error(pc.red(error instanceof Error ? error.message : String(error)));
-      process.exitCode = 1;
-    }
-  });
+  .action(listRuns);
+github
+  .command("runs")
+  .description("Alias for github ci — list recent workflow runs")
+  .option("-n, --limit <number>", "number of runs to inspect", "10")
+  .action(listRuns);
+
 github.command("ci-diagnose [runId]").description("Diagnose a failed GitHub Actions run from its failed-step logs").action(async (runId?: string) => {
   try {
     let selectedId: number;

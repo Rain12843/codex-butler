@@ -32,6 +32,7 @@ codex-butler doctor
 codex-butler setup
 codex-butler doctor
 codex-butler status
+codex-butler codex-config
 codex-butler init
 codex-butler skills install testing
 codex-butler skills show testing
@@ -52,6 +53,7 @@ codex-butler github pr-review 18
 codex-butler setup
 codex-butler doctor
 codex-butler status
+codex-butler codex-config
 codex-butler init [--force]
 codex-butler plan "<task>"
 codex-butler github issue <number>
@@ -59,7 +61,7 @@ codex-butler github pr <number>
 codex-butler github issue-plan <number>
 codex-butler github pr-plan <number>
 codex-butler github pr-review <number>
-codex-butler github ci
+codex-butler github ci | github runs
 codex-butler github ci-diagnose [run-id]
 codex-butler skills
 codex-butler skills list
@@ -74,14 +76,15 @@ codex-butler config mode <mode>
 ```
 
 - `setup` — initialize Butler's user configuration and show the first-time checklist.
-- `doctor` — inspect Node.js, Git, Codex CLI, GitHub CLI, Python, `~/.codex`, Codex instruction files, user/project skill directories, configuration, and MCP configuration evidence.
+- `doctor` — inspect Node.js, Git, Codex CLI, GitHub CLI, Python, `~/.codex`, Codex instruction files, user/project skill directories, configuration, and MCP configuration evidence. Also surfaces default model, approval policy, and sandbox mode when `config.toml` is present.
 - `status` — compact environment + Codex readiness summary with the current Butler mode.
+- `codex-config` — summarize `~/.codex/config.toml`: model, provider, approval policy, sandbox mode, reasoning effort, MCP servers, and optional project `.codex/config.toml`.
 - `init` — recursively inspect the project (with depth/file safety limits, skipping generated/dependency directories), detect the package manager and common language/tooling files, generate `AGENTS.md`, initialize `.codex-butler/` project memory, and ensure `.codex-butler/` is gitignored.
 - `plan` — turn a plain-language task into a deterministic work plan covering inspection, implementation, validation, and risks. It performs no network calls and does not execute the task.
 - `github issue` / `github pr` — read issue or pull-request context through the locally installed GitHub CLI. Butler passes fixed argument lists to `gh` and does not invoke a shell or execute content from the issue/PR body.
 - `github issue-plan` / `github pr-plan` — combine GitHub context with Butler's deterministic planner.
 - `github pr-review` — produce a structured review checklist from PR metadata and changed files.
-- `github ci` — list recent workflow runs and their status, branch, commit, and creation time. It is read-only and uses the local GitHub CLI.
+- `github ci` / `github runs` — list recent workflow runs and their status, branch, commit, and creation time. It is read-only and uses the local GitHub CLI.
 - `github ci-diagnose` — inspect failed-step logs for a workflow run and produce deterministic diagnostics: failed steps, a coarse error category, likely cause, next actions, and a bounded untrusted log excerpt. If no run ID is supplied, Butler selects the most recent failed run among the last 10 runs; an explicit run ID also loads its workflow metadata.
 - `skills` / `skills list` — browse built-in skills with practical checklists for common domains.
 - `skills show` — preview a built-in skill template or an already-installed `SKILL.md`.
@@ -100,6 +103,7 @@ Butler is intentionally conservative:
 - Skill import validates tree shape (no symlinks, bounded file count and size) before installation.
 - Skill audit is heuristic and advisory; it does not claim to prove safety.
 - Project memory under `.codex-butler/` is gitignored by default.
+- Config inspection is read-only and does not print secrets from `auth.json` or environment variables.
 
 Built-in and imported skills are installed under `~/.agents/skills/`, which is a Codex skill discovery path (user scope).
 
@@ -131,7 +135,7 @@ CI runs type checking, builds, and tests on pushes to `main` and pull requests.
 - [x] Project scan safety limits
 - [x] Compact status command
 - [x] Skills show / install-all / named import
+- [x] Codex configuration deep inspection
 - [ ] Skill registry with signed/verified sources
-- [ ] Codex configuration deep inspection
 - [ ] GitHub issue / PR action workflows
 - [ ] Optional MCP server mode
