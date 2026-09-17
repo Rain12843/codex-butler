@@ -1,14 +1,11 @@
-import { access, cp, mkdir, readdir, rm } from "node:fs/promises";
+import { access, cp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 
 export type SkillCategory = "frontend" | "backend" | "database" | "testing" | "security" | "refactoring" | "git" | "github" | "docker" | "python" | "react" | "flutter" | "devops";
 
-export interface SkillDefinition {
-  name: SkillCategory;
-  description: string;
-}
+export interface SkillDefinition { name: SkillCategory; description: string; }
 
 export const builtInSkills: SkillDefinition[] = [
   { name: "frontend", description: "Frontend architecture, UI implementation, and accessibility" },
@@ -28,45 +25,53 @@ export const builtInSkills: SkillDefinition[] = [
 
 const skillTemplate = (skill: SkillDefinition) => `---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n\n# ${skill.name} skill\n\n## Goal\nApply the ${skill.name} workflow consistently while preserving the repository's existing conventions.\n\n## Rules\n- Inspect the relevant code before changing it.\n- Prefer small, reviewable changes.\n- Run the narrowest useful validation after edits.\n- Do not expose secrets or modify unrelated files.\n`;
 
-export function getSkillsPath(): string {
-  return join(homedir(), ".codex-butler", "skills");
+function assertSafeName(name: string): void {
+  if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) throw new Error("Invalid skill name");
 }
+
+export function getSkillsPath(): string { return join(homedir(), ".codex-butler", "skills"); }
 
 export async function listInstalledSkills(): Promise<string[]> {
-  try {
-    return (await readdir(getSkillsPath(), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
-  } catch { return []; }
+  try { return (await readdir(getSkillsPath(), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort(); }
+  catch { return []; }
 }
 
-export async function installSkill(name: string): Promise<string> {
+export async function installSkill(name: string, force = false): Promise<string> {
+  assertSafeName(name);
   const skill = builtInSkills.find((item) => item.name === name);
   if (!skill) throw new Error(`Unknown built-in skill: ${name}`);
   const target = join(getSkillsPath(), name);
+  await mkdir(getSkillsPath(), { recursive: true });
+  if (!force) {
+    try { await access(join(target, "SKILL.md"), constants.F_OK); throw new Error(`Skill already installed: ${name}. Use --force to replace it.`); }
+    catch (error) { if (error instanceof Error && error.message.startsWith("Skill already installed:")) throw error; }
+  }
   await mkdir(target, { recursive: true });
-  const { writeFile } = await import("node:fs/promises");
   await writeFile(join(target, "SKILL.md"), skillTemplate(skill), "utf8");
   return target;
 }
 
 export async function removeSkill(name: string): Promise<void> {
+  assertSafeName(name);
   const base = resolve(getSkillsPath());
   const target = resolve(base, name);
-  if (target !== join(base, name)) throw new Error("Invalid skill path");
+  if (relative(base, target).startsWith("..") || target === base) throw new Error("Invalid skill path");
   await rm(target, { recursive: true, force: true });
 }
 
-export async function importSkillDirectory(source: string): Promise<string> {
+export async function importSkillDirectory(source: string, name = basename(resolve(source)), force = false): Promise<string> {
+  assertSafeName(name);
   const sourcePath = resolve(source);
-  const marker = join(sourcePath, "SKILL.md");
-  try { await access(marker, constants.R_OK); } catch { throw new Error("Source directory must contain SKILL.md"); }
-  const name = sourcePath.split(/[\\/]/).pop();
-  if (!name) throw new Error("Invalid skill directory");
+  try { await access(join(sourcePath, "SKILL.md"), constants.R_OK); } catch { throw new Error("Source directory must contain SKILL.md"); }
   const target = join(getSkillsPath(), name);
   await mkdir(getSkillsPath(), { recursive: true });
+  if (!force) {
+    try { await access(target, constants.F_OK); throw new Error(`Skill already exists: ${name}. Use --force to replace it.`); }
+    catch (error) { if (error instanceof Error && error.message.startsWith("Skill already exists:")) throw error; }
+  }
+  await rm(target, { recursive: true, force: true });
   await cp(sourcePath, target, { recursive: true });
   return target;
 }
 
-export function formatSkills(): string {
-  return builtInSkills.map((skill) => `- ${skill.name}: ${skill.description}`).join("\n");
-}
+export function formatSkills(): string { return builtInSkills.map((skill) => `- ${skill.name}: ${skill.description}`).join("\n"); }
