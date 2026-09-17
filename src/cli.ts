@@ -5,7 +5,6 @@ import { runChecks } from "./core/checks.js";
 import { analyzeProject, generateAgents } from "./core/project.js";
 import { ensureButlerGitignore, initMemory } from "./core/memory.js";
 import {
-  formatSkills,
   formatSkillsWithStatus,
   getSkillPath,
   getSkillsPath,
@@ -40,7 +39,7 @@ const program = new Command();
 program
   .name("codex-butler")
   .description("A productivity and diagnostics layer for OpenAI Codex")
-  .version("0.8.1");
+  .version("0.8.2");
 
 function parsePositiveInteger(value: string, label: string): number {
   if (!/^\d+$/.test(value)) throw new Error(`${label} must be a positive integer`);
@@ -49,31 +48,53 @@ function parsePositiveInteger(value: string, label: string): number {
   return parsed;
 }
 
-program.command("doctor").description("Diagnose the local Codex development environment").action(async () => {
-  console.log(pc.bold("Codex Butler Doctor"));
-  const checks = await runChecks();
-  for (const result of checks) {
-    const icon = result.ok ? pc.green("✓") : pc.red("✗");
-    console.log(`${icon} ${result.name}: ${result.detail}`);
-  }
-  console.log();
-  const codexChecks = await inspectCodex(process.cwd());
-  for (const result of codexChecks) {
-    const icon = result.status === "ok" ? pc.green("✓") : result.status === "warning" ? pc.yellow("!") : pc.red("✗");
-    console.log(`${icon} ${result.name}: ${result.detail}`);
-  }
-  // Exit non-zero when critical tools are missing (Node or Codex CLI).
-  const criticalFailed = checks.some((c) => !c.ok && (c.name === "Node.js" || c.name === "Codex CLI"));
-  const codexMissing = codexChecks.some((c) => c.name === "Codex CLI" && c.status === "missing");
-  if (criticalFailed || codexMissing) process.exitCode = 1;
-});
+program
+  .command("doctor")
+  .description("Diagnose the local Codex development environment")
+  .option("--json", "emit machine-readable JSON")
+  .action(async (options: { json?: boolean }) => {
+    const checks = await runChecks();
+    const codexChecks = await inspectCodex(process.cwd());
+    const criticalFailed = checks.some((c) => !c.ok && (c.name === "Node.js" || c.name === "Codex CLI"));
+    const codexMissing = codexChecks.some((c) => c.name === "Codex CLI" && c.status === "missing");
+    const ok = !(criticalFailed || codexMissing);
+
+    if (options.json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok,
+            environment: checks,
+            codex: codexChecks,
+          },
+          null,
+          2
+        )
+      );
+    } else {
+      console.log(pc.bold("Codex Butler Doctor"));
+      for (const result of checks) {
+        const icon = result.ok ? pc.green("✓") : pc.red("✗");
+        console.log(`${icon} ${result.name}: ${result.detail}`);
+      }
+      console.log();
+      for (const result of codexChecks) {
+        const icon = result.status === "ok" ? pc.green("✓") : result.status === "warning" ? pc.yellow("!") : pc.red("✗");
+        console.log(`${icon} ${result.name}: ${result.detail}`);
+      }
+    }
+    if (!ok) process.exitCode = 1;
+  });
 
 program
   .command("codex-config")
   .description("Summarize ~/.codex/config.toml (model, sandbox, approval, MCP)")
-  .action(async () => {
+  .option("--json", "emit machine-readable JSON")
+  .action(async (options: { json?: boolean }) => {
     try {
-      console.log(formatCodexConfigSummary(await inspectCodexConfig(process.cwd())));
+      const summary = await inspectCodexConfig(process.cwd());
+      if (options.json) console.log(JSON.stringify(summary, null, 2));
+      else console.log(formatCodexConfigSummary(summary));
     } catch (error) {
       console.error(pc.red(error instanceof Error ? error.message : String(error)));
       process.exitCode = 1;
@@ -266,6 +287,11 @@ github.command("ci-diagnose [runId]").description("Diagnose a failed GitHub Acti
 
 const skills = program.command("skills").description("Manage reusable Codex Butler skills");
 
+const builtInNameSet = new Set([
+  "frontend", "backend", "database", "testing", "security", "refactoring",
+  "git", "github", "docker", "python", "react", "flutter", "devops",
+]);
+
 async function printSkillsList() {
   const installed = await listInstalledSkills();
   console.log(pc.bold("Built-in skills"));
@@ -278,11 +304,6 @@ async function printSkillsList() {
     console.log(custom.map((name) => `- ${name}`).join("\n"));
   }
 }
-
-const builtInNameSet = new Set([
-  "frontend", "backend", "database", "testing", "security", "refactoring",
-  "git", "github", "docker", "python", "react", "flutter", "devops",
-]);
 
 skills.command("list").description("List available and installed skills").action(async () => {
   await printSkillsList();

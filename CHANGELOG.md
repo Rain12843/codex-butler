@@ -1,0 +1,30 @@
+# Changelog
+
+## 0.8.2
+
+- `doctor --json` for machine-readable environment reports
+- CI runs on Node.js 22
+- Fix `extractTomlValue` regex escapes (config model/approval/sandbox parsing)
+
+## 0.8.1
+
+- `plan` / `github issue-plan` / `github pr-plan` support `--json` and `--prompt`
+- `doctor` exits with code 1 when Node.js or Codex CLI is missing
+- Skills list shows `[installed]` / `[available]` markers
+- CONTRIBUTING.md added
+
+## 0.8.0
+
+- `codex-config` summarizes `~/.codex/config.toml`
+- Doctor surfaces model, approval policy, sandbox mode, MCP servers
+- `github runs` alias for `github ci`
+
+## 0.7.1
+
+- `skills show`, `skills install-all`, named `skills import`
+- Safer `installSkill` string validation
+
+## 0.7.0
+
+- `status` command, project scan limits, richer skill checklists
+- Project memory gitignore on `init`

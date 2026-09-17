@@ -1,6 +1,6 @@
 {
   "name": "codex-butler",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "A productivity and diagnostics layer for OpenAI Codex — setup, doctor, skills, GitHub context, and CI diagnosis.",
   "type": "module",
   "bin": {
@@ -9,7 +9,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc",
