@@ -1,4 +1,4 @@
-import { access, cp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
@@ -24,6 +24,10 @@ export const builtInSkills: SkillDefinition[] = [
 ];
 
 const skillTemplate = (skill: SkillDefinition) => `---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n\n# ${skill.name} skill\n\n## Goal\nApply the ${skill.name} workflow consistently while preserving the repository's existing conventions.\n\n## Rules\n- Inspect the relevant code before changing it.\n- Prefer small, reviewable changes.\n- Run the narrowest useful validation after edits.\n- Do not expose secrets or modify unrelated files.\n`;
+
+const MAX_SKILL_FILES = 64;
+const MAX_SKILL_FILE_BYTES = 256 * 1024;
+const MAX_SKILL_TOTAL_BYTES = 1024 * 1024;
 
 function assertSafeName(name: string): void {
   if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) throw new Error("Invalid skill name");
@@ -63,10 +67,36 @@ export async function removeSkill(name: string): Promise<void> {
   await rm(target, { recursive: true, force: true });
 }
 
+async function validateSkillTree(sourcePath: string): Promise<void> {
+  let fileCount = 0;
+  let totalBytes = 0;
+
+  async function walk(directory: string): Promise<void> {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isSymbolicLink()) throw new Error(`Skill source cannot contain symlinks: ${relative(sourcePath, path)}`);
+      if (entry.isDirectory()) {
+        await walk(path);
+        continue;
+      }
+      if (!entry.isFile()) throw new Error(`Unsupported skill source entry: ${relative(sourcePath, path)}`);
+      fileCount += 1;
+      if (fileCount > MAX_SKILL_FILES) throw new Error(`Skill source exceeds ${MAX_SKILL_FILES} files`);
+      const stat = await import("node:fs/promises").then(({ stat }) => stat(path));
+      if (stat.size > MAX_SKILL_FILE_BYTES) throw new Error(`Skill file exceeds ${MAX_SKILL_FILE_BYTES} bytes: ${relative(sourcePath, path)}`);
+      totalBytes += stat.size;
+      if (totalBytes > MAX_SKILL_TOTAL_BYTES) throw new Error(`Skill source exceeds ${MAX_SKILL_TOTAL_BYTES} total bytes`);
+    }
+  }
+
+  await walk(sourcePath);
+}
+
 export async function importSkillDirectory(source: string, name = basename(resolve(source)), force = false): Promise<string> {
   assertSafeName(name);
   const sourcePath = resolve(source);
   try { await access(join(sourcePath, "SKILL.md"), constants.R_OK); } catch { throw new Error("Source directory must contain SKILL.md"); }
+  await validateSkillTree(sourcePath);
   const target = getSkillPath(name);
   await mkdir(getSkillsPath(), { recursive: true });
   if (!force) {
@@ -74,7 +104,10 @@ export async function importSkillDirectory(source: string, name = basename(resol
     catch (error) { if (error instanceof Error && error.message.startsWith("Skill already exists:")) throw error; }
   }
   await rm(target, { recursive: true, force: true });
-  await cp(sourcePath, target, { recursive: true, verbatimSymlinks: false });
+
+  // Copy validated regular files without following source symlinks.
+  const { cp } = await import("node:fs/promises");
+  await cp(sourcePath, target, { recursive: true, verbatimSymlinks: true, dereference: false });
   return target;
 }
 
