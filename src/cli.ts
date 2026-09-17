@@ -153,12 +153,12 @@ skills.command("list").description("List available and installed skills").action
 });
 skills.command("path").description("Show the local skill directory").action(() => console.log(getSkillsPath()));
 skills.command("install <name>").description("Install a built-in skill locally").option("--force", "replace an existing skill").action(async (name: string, options: { force?: boolean }) => {
-  try { console.log(pc.green(`✓ Installed ${name}: ${await installSkill(name, options.force === true)}`)); }
+  try { console.log(pc.green(`✓ Installed ${name}: ${await installSkill(name as any, options.force === true)}`)); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
-skills.command("import <path>").description("Import a local skill directory containing SKILL.md").option("--name <name>", "target skill name").option("--force", "replace an existing skill").action(async (path: string, options: { name?: string; force?: boolean }) => {
+skills.command("import <path>").description("Import a local skill directory containing SKILL.md").option("--force", "replace an existing skill").action(async (path: string, options: { force?: boolean }) => {
   try {
-    const target = await importSkillDirectory(path, options.name, options.force === true);
+    const target = await importSkillDirectory(path, options.force === true);
     console.log(pc.green(`✓ Imported skill: ${target}`));
   } catch (error) {
     console.error(pc.red(error instanceof Error ? error.message : String(error)));
