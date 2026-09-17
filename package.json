@@ -1,18 +1,27 @@
 {
   "name": "codex-butler",
-  "version": "0.6.0",
-  "description": "A productivity and diagnostics layer for OpenAI Codex.",
+  "version": "0.7.0",
+  "description": "A productivity and diagnostics layer for OpenAI Codex — setup, doctor, skills, GitHub context, and CI diagnosis.",
   "type": "module",
-  "bin": { "codex-butler": "dist/cli.js" },
-  "files": ["dist"],
+  "bin": {
+    "codex-butler": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
     "check": "tsc --noEmit",
-    "test": "npm run build && node --test dist/core/*.test.js"
+    "test": "npm run build && node --test dist/core/*.test.js",
+    "prepublishOnly": "npm run check && npm run build && npm test"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "commander": "^14.0.0",
     "picocolors": "^1.1.1"
@@ -22,5 +31,24 @@
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"
   },
+  "keywords": [
+    "codex",
+    "openai",
+    "cli",
+    "developer-tools",
+    "ai-coding",
+    "github",
+    "skills",
+    "agent"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rain12843/codex-butler.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Rain12843/codex-butler/issues"
+  },
+  "homepage": "https://github.com/Rain12843/codex-butler#readme",
+  "author": "Samm Li",
   "license": "MIT"
 }
