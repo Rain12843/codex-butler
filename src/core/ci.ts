@@ -29,9 +29,9 @@ async function gh(args: string[]): Promise<string> {
     const { stdout } = await exec("gh", args, { timeout: 15000, maxBuffer: 4 * 1024 * 1024 });
     return stdout.trim();
   } catch (error) {
-    const candidate = error as { stdout?: string; stderr?: string; message?: string };
+    const candidate = error as { stdout?: string; stderr?: string };
     const output = [candidate.stdout, candidate.stderr].filter((value): value is string => typeof value === "string" && value.length > 0).join("\n").trim();
-    if (output) return output;
+    if (output) throw new Error(`GitHub CLI request failed: ${output.slice(0, 2000)}`);
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`GitHub CLI request failed: ${detail}`);
   }
@@ -50,7 +50,7 @@ function parseRuns(raw: string): WorkflowRunSummary[] {
     const commit = item.headSha;
     const url = item.url;
     const createdAt = item.createdAt;
-    if (!Number.isInteger(databaseId) || typeof name !== "string" || typeof status !== "string" || (conclusion !== null && typeof conclusion !== "string") || typeof branch !== "string" || typeof commit !== "string" || typeof url !== "string" || typeof createdAt !== "string") {
+    if (typeof databaseId !== "number" || !Number.isInteger(databaseId) || typeof name !== "string" || typeof status !== "string" || (conclusion !== null && typeof conclusion !== "string") || typeof branch !== "string" || typeof commit !== "string" || typeof url !== "string" || typeof createdAt !== "string") {
       throw new Error("GitHub CLI returned incomplete workflow data");
     }
     return { databaseId, name, status, conclusion, branch, commit, url, createdAt };
@@ -65,7 +65,7 @@ function validateRunId(runId: number): void {
   if (!Number.isInteger(runId) || runId < 1) throw new Error("Workflow run ID must be a positive integer");
 }
 
-function classifyLog(log: string): Pick<WorkflowDiagnosis, "category" | "likelyCause" | "nextSteps"> {
+export function classifyWorkflowLog(log: string): Pick<WorkflowDiagnosis, "category" | "likelyCause" | "nextSteps"> {
   const lower = log.toLowerCase();
   if (/ts\d{4}|typescript|tsc\b/.test(lower)) return { category: "TypeScript", likelyCause: "The workflow reached a TypeScript type-checking error.", nextSteps: ["Run `npm run check` locally.", "Fix the first TypeScript error before addressing downstream errors.", "Run the full test suite after the type check passes."] };
   if (/npm err!|npm error|npm ci|npm install/.test(lower)) return { category: "npm / dependencies", likelyCause: "The dependency installation or npm lifecycle step failed.", nextSteps: ["Check the package manager error immediately above the failure.", "Verify package.json and package-lock.json are synchronized when a lockfile is used.", "Reproduce with the same Node.js version as CI."] };
@@ -75,7 +75,7 @@ function classifyLog(log: string): Pick<WorkflowDiagnosis, "category" | "likelyC
   return { category: "Unknown", likelyCause: "The failure did not match a known diagnostic signature.", nextSteps: ["Inspect the first error in the failed job log.", "Reproduce the failing command locally with the same runtime versions.", "Review recent changes affecting the failed workflow step."] };
 }
 
-function extractFailedSteps(log: string): string[] {
+export function extractFailedWorkflowSteps(log: string): string[] {
   const steps = new Set<string>();
   for (const line of log.split("\n")) {
     const match = line.match(/##\[group\]Run (.+)$/);
@@ -84,11 +84,15 @@ function extractFailedSteps(log: string): string[] {
   return [...steps];
 }
 
-function excerpt(log: string): string {
+export function workflowLogExcerpt(log: string): string {
   const lines = log.split("\n").filter((line) => line.trim());
   const errorIndex = lines.findIndex((line) => /error|failed|failure|fatal|exception|ts\d{4}/i.test(line));
   const start = Math.max(0, errorIndex < 0 ? lines.length - 20 : errorIndex - 4);
   return lines.slice(start, start + 25).join("\n").slice(0, 6000);
+}
+
+export function analyzeWorkflowLog(log: string): Pick<WorkflowDiagnosis, "failedSteps" | "category" | "likelyCause" | "nextSteps" | "logExcerpt"> {
+  return { failedSteps: extractFailedWorkflowSteps(log), ...classifyWorkflowLog(log), logExcerpt: workflowLogExcerpt(log) };
 }
 
 export async function getRecentWorkflowRuns(limit = 10): Promise<WorkflowRunSummary[]> {
@@ -100,7 +104,7 @@ export async function getRecentWorkflowRuns(limit = 10): Promise<WorkflowRunSumm
 export async function diagnoseWorkflowRun(runId: number, summary: WorkflowRunSummary | null = null): Promise<WorkflowDiagnosis> {
   validateRunId(runId);
   const log = await gh(["run", "view", String(runId), "--log-failed"]);
-  return { runId, summary, failedSteps: extractFailedSteps(log), ...classifyLog(log), logExcerpt: excerpt(log) };
+  return { runId, summary, ...analyzeWorkflowLog(log) };
 }
 
 export function formatWorkflowRuns(runs: WorkflowRunSummary[]): string {
