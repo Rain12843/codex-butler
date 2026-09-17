@@ -101,6 +101,15 @@ export async function getRecentWorkflowRuns(limit = 10): Promise<WorkflowRunSumm
   return parseRuns(raw);
 }
 
+export async function getWorkflowRunSummary(runId: number): Promise<WorkflowRunSummary> {
+  validateRunId(runId);
+  const raw = await gh(["run", "view", String(runId), "--json", "databaseId,name,status,conclusion,headBranch,headSha,url,createdAt"]);
+  const runs = parseRuns(`[${raw}]`);
+  const summary = runs[0];
+  if (!summary) throw new Error("GitHub CLI returned incomplete workflow run data");
+  return summary;
+}
+
 export async function diagnoseWorkflowRun(runId: number, summary: WorkflowRunSummary | null = null): Promise<WorkflowDiagnosis> {
   validateRunId(runId);
   const log = await gh(["run", "view", String(runId), "--log-failed"]);
