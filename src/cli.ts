@@ -8,6 +8,7 @@ import { formatSkills, getSkillsPath, installSkill, listInstalledSkills, removeS
 import { ensureConfig, getConfigPath, loadConfig, saveConfig } from "./core/config.js";
 import { inspectCodex } from "./core/codex.js";
 import { auditSkillDirectory } from "./core/skill-audit.js";
+import { formatTaskPlan, planTask } from "./core/planner.js";
 
 const program = new Command();
 program.name("codex-butler").description("A productivity and diagnostics layer for OpenAI Codex").version("0.4.0");
@@ -53,6 +54,11 @@ program.command("init").description("Analyze the current project and create AGEN
   console.log(pc.green(`✓ Created ${target}`));
   console.log(pc.green(`✓ Initialized project memory (${created.length} files)`));
   console.log(pc.dim(`Detected ${project.files.length} files and ${project.directories.length} directories.`));
+});
+
+program.command("plan <task>").description("Turn a plain-language task into a deterministic Codex work plan").action((task: string) => {
+  try { console.log(formatTaskPlan(planTask(task))); }
+  catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 
 const skills = program.command("skills").description("Manage reusable Codex Butler skills");
