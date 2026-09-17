@@ -1,4 +1,4 @@
-import { access, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
@@ -82,9 +82,9 @@ async function validateSkillTree(sourcePath: string): Promise<void> {
       if (!entry.isFile()) throw new Error(`Unsupported skill source entry: ${relative(sourcePath, path)}`);
       fileCount += 1;
       if (fileCount > MAX_SKILL_FILES) throw new Error(`Skill source exceeds ${MAX_SKILL_FILES} files`);
-      const stat = await import("node:fs/promises").then(({ stat }) => stat(path));
-      if (stat.size > MAX_SKILL_FILE_BYTES) throw new Error(`Skill file exceeds ${MAX_SKILL_FILE_BYTES} bytes: ${relative(sourcePath, path)}`);
-      totalBytes += stat.size;
+      const fileStat = await stat(path);
+      if (fileStat.size > MAX_SKILL_FILE_BYTES) throw new Error(`Skill file exceeds ${MAX_SKILL_FILE_BYTES} bytes: ${relative(sourcePath, path)}`);
+      totalBytes += fileStat.size;
       if (totalBytes > MAX_SKILL_TOTAL_BYTES) throw new Error(`Skill source exceeds ${MAX_SKILL_TOTAL_BYTES} total bytes`);
     }
   }
@@ -96,17 +96,20 @@ export async function importSkillDirectory(source: string, name = basename(resol
   assertSafeName(name);
   const sourcePath = resolve(source);
   try { await access(join(sourcePath, "SKILL.md"), constants.R_OK); } catch { throw new Error("Source directory must contain SKILL.md"); }
+  const target = resolve(getSkillPath(name));
+  const skillsRoot = resolve(getSkillsPath());
+  const sourceRelativeToTarget = relative(target, sourcePath);
+  const targetRelativeToSource = relative(sourcePath, target);
+  if (sourcePath === target || !sourceRelativeToTarget.startsWith("..") || !targetRelativeToSource.startsWith("..")) {
+    throw new Error("Skill source and target must be separate directories");
+  }
   await validateSkillTree(sourcePath);
-  const target = getSkillPath(name);
-  await mkdir(getSkillsPath(), { recursive: true });
+  await mkdir(skillsRoot, { recursive: true });
   if (!force) {
     try { await access(target, constants.F_OK); throw new Error(`Skill already exists: ${name}. Use --force to replace it.`); }
     catch (error) { if (error instanceof Error && error.message.startsWith("Skill already exists:")) throw error; }
   }
   await rm(target, { recursive: true, force: true });
-
-  // Copy validated regular files without following source symlinks.
-  const { cp } = await import("node:fs/promises");
   await cp(sourcePath, target, { recursive: true, verbatimSymlinks: true, dereference: false });
   return target;
 }
