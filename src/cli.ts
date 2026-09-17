@@ -6,6 +6,7 @@ import { analyzeProject, generateAgents } from "./core/project.js";
 import { ensureButlerGitignore, initMemory } from "./core/memory.js";
 import {
   formatSkills,
+  formatSkillsWithStatus,
   getSkillPath,
   getSkillsPath,
   importSkillDirectory,
@@ -18,7 +19,7 @@ import {
 import { ensureConfig, getConfigPath, loadConfig, saveConfig, isButlerMode } from "./core/config.js";
 import { formatCodexConfigSummary, inspectCodex, inspectCodexConfig } from "./core/codex.js";
 import { auditSkillDirectory } from "./core/skill-audit.js";
-import { formatTaskPlan, planGitHubContext, planTask } from "./core/planner.js";
+import { formatCodexPrompt, formatTaskPlan, planGitHubContext, planTask } from "./core/planner.js";
 import {
   formatGitHubContext,
   getIssueContext,
@@ -39,7 +40,7 @@ const program = new Command();
 program
   .name("codex-butler")
   .description("A productivity and diagnostics layer for OpenAI Codex")
-  .version("0.8.0");
+  .version("0.8.1");
 
 function parsePositiveInteger(value: string, label: string): number {
   if (!/^\d+$/.test(value)) throw new Error(`${label} must be a positive integer`);
@@ -50,15 +51,21 @@ function parsePositiveInteger(value: string, label: string): number {
 
 program.command("doctor").description("Diagnose the local Codex development environment").action(async () => {
   console.log(pc.bold("Codex Butler Doctor"));
-  for (const result of await runChecks()) {
+  const checks = await runChecks();
+  for (const result of checks) {
     const icon = result.ok ? pc.green("✓") : pc.red("✗");
     console.log(`${icon} ${result.name}: ${result.detail}`);
   }
   console.log();
-  for (const result of await inspectCodex(process.cwd())) {
+  const codexChecks = await inspectCodex(process.cwd());
+  for (const result of codexChecks) {
     const icon = result.status === "ok" ? pc.green("✓") : result.status === "warning" ? pc.yellow("!") : pc.red("✗");
     console.log(`${icon} ${result.name}: ${result.detail}`);
   }
+  // Exit non-zero when critical tools are missing (Node or Codex CLI).
+  const criticalFailed = checks.some((c) => !c.ok && (c.name === "Node.js" || c.name === "Codex CLI"));
+  const codexMissing = codexChecks.some((c) => c.name === "Codex CLI" && c.status === "missing");
+  if (criticalFailed || codexMissing) process.exitCode = 1;
 });
 
 program
@@ -131,14 +138,22 @@ program.command("status").description("Show a compact environment, config, and p
   }
 });
 
-program.command("plan <task>").description("Turn a plain-language task into a deterministic Codex work plan").action((task: string) => {
-  try {
-    console.log(formatTaskPlan(planTask(task)));
-  } catch (error) {
-    console.error(pc.red(error instanceof Error ? error.message : String(error)));
-    process.exitCode = 1;
-  }
-});
+program
+  .command("plan <task>")
+  .description("Turn a plain-language task into a deterministic Codex work plan")
+  .option("--json", "emit the plan as JSON")
+  .option("--prompt", "emit a compact prompt ready to paste into Codex")
+  .action((task: string, options: { json?: boolean; prompt?: boolean }) => {
+    try {
+      const plan = planTask(task);
+      if (options.json) console.log(JSON.stringify(plan, null, 2));
+      else if (options.prompt) console.log(formatCodexPrompt(plan));
+      else console.log(formatTaskPlan(plan));
+    } catch (error) {
+      console.error(pc.red(error instanceof Error ? error.message : String(error)));
+      process.exitCode = 1;
+    }
+  });
 
 const github = program.command("github").description("Inspect GitHub context through the local GitHub CLI");
 github.command("issue <number>").description("Show an issue as structured context").action(async (number: string) => {
@@ -149,14 +164,22 @@ github.command("issue <number>").description("Show an issue as structured contex
     process.exitCode = 1;
   }
 });
-github.command("issue-plan <number>").description("Turn a GitHub issue into a deterministic work plan").action(async (number: string) => {
-  try {
-    console.log(formatTaskPlan(planGitHubContext(await getIssueContext(parsePositiveInteger(number, "Issue number")))));
-  } catch (error) {
-    console.error(pc.red(error instanceof Error ? error.message : String(error)));
-    process.exitCode = 1;
-  }
-});
+github
+  .command("issue-plan <number>")
+  .description("Turn a GitHub issue into a deterministic work plan")
+  .option("--json", "emit the plan as JSON")
+  .option("--prompt", "emit a compact prompt ready to paste into Codex")
+  .action(async (number: string, options: { json?: boolean; prompt?: boolean }) => {
+    try {
+      const plan = planGitHubContext(await getIssueContext(parsePositiveInteger(number, "Issue number")));
+      if (options.json) console.log(JSON.stringify(plan, null, 2));
+      else if (options.prompt) console.log(formatCodexPrompt(plan));
+      else console.log(formatTaskPlan(plan));
+    } catch (error) {
+      console.error(pc.red(error instanceof Error ? error.message : String(error)));
+      process.exitCode = 1;
+    }
+  });
 github.command("pr <number>").description("Show a pull request as structured context").action(async (number: string) => {
   try {
     console.log(formatGitHubContext(await getPullRequestContext(parsePositiveInteger(number, "Pull request number"))));
@@ -165,14 +188,22 @@ github.command("pr <number>").description("Show a pull request as structured con
     process.exitCode = 1;
   }
 });
-github.command("pr-plan <number>").description("Turn a GitHub pull request into a deterministic review plan").action(async (number: string) => {
-  try {
-    console.log(formatTaskPlan(planGitHubContext(await getPullRequestContext(parsePositiveInteger(number, "Pull request number")))));
-  } catch (error) {
-    console.error(pc.red(error instanceof Error ? error.message : String(error)));
-    process.exitCode = 1;
-  }
-});
+github
+  .command("pr-plan <number>")
+  .description("Turn a GitHub pull request into a deterministic review plan")
+  .option("--json", "emit the plan as JSON")
+  .option("--prompt", "emit a compact prompt ready to paste into Codex")
+  .action(async (number: string, options: { json?: boolean; prompt?: boolean }) => {
+    try {
+      const plan = planGitHubContext(await getPullRequestContext(parsePositiveInteger(number, "Pull request number")));
+      if (options.json) console.log(JSON.stringify(plan, null, 2));
+      else if (options.prompt) console.log(formatCodexPrompt(plan));
+      else console.log(formatTaskPlan(plan));
+    } catch (error) {
+      console.error(pc.red(error instanceof Error ? error.message : String(error)));
+      process.exitCode = 1;
+    }
+  });
 github.command("pr-diff <number>").description("Analyze a pull request diff for change scope and risky patterns").action(async (number: string) => {
   try {
     console.log(formatPullRequestDiffAnalysis(await analyzePullRequestDiff(parsePositiveInteger(number, "Pull request number"))));
@@ -234,12 +265,27 @@ github.command("ci-diagnose [runId]").description("Diagnose a failed GitHub Acti
 });
 
 const skills = program.command("skills").description("Manage reusable Codex Butler skills");
-skills.command("list").description("List available and installed skills").action(async () => {
-  console.log(pc.bold("Available skills"));
-  console.log(formatSkills());
+
+async function printSkillsList() {
   const installed = await listInstalledSkills();
-  console.log(pc.bold("\nInstalled skills"));
+  console.log(pc.bold("Built-in skills"));
+  console.log(formatSkillsWithStatus(installed));
+  const custom = installed.filter((name) => !builtInNameSet.has(name));
+  console.log(pc.bold("\nInstalled (all)"));
   console.log(installed.length ? installed.map((name) => `- ${name}`).join("\n") : "- none");
+  if (custom.length) {
+    console.log(pc.bold("\nCustom / imported"));
+    console.log(custom.map((name) => `- ${name}`).join("\n"));
+  }
+}
+
+const builtInNameSet = new Set([
+  "frontend", "backend", "database", "testing", "security", "refactoring",
+  "git", "github", "docker", "python", "react", "flutter", "devops",
+]);
+
+skills.command("list").description("List available and installed skills").action(async () => {
+  await printSkillsList();
 });
 skills.command("path").description("Show the local skill directory").action(() => console.log(getSkillsPath()));
 skills.command("show <name>").description("Preview a built-in or installed skill").action(async (name: string) => {
@@ -318,8 +364,7 @@ skills.command("audit <name>").description("Audit an installed skill for risky i
   }
 });
 skills.action(async () => {
-  console.log(pc.bold("Codex Butler Skills"));
-  console.log(formatSkills());
+  await printSkillsList();
 });
 
 const config = program.command("config").description("Manage Butler configuration");
