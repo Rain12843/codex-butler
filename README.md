@@ -40,7 +40,7 @@ codex-butler config mode <mode>
 
 - `setup` — initialize Butler's user configuration and show the first-time checklist.
 - `doctor` — inspect Node.js, Git, Codex CLI, GitHub CLI, Python, `~/.codex`, AGENTS.md, configuration, and common MCP configuration locations.
-- `init` — inspect the current project, generate `AGENTS.md`, and initialize `.codex-butler/` project memory.
+- `init` — recursively inspect the project (while skipping generated/dependency directories), detect the package manager and common language/tooling files, generate `AGENTS.md`, and initialize `.codex-butler/` project memory.
 - `skills` — browse built-in skills.
 - `skills install` — install a safe local skill template from the built-in catalog.
 - `config` — manage Butler's local configuration and default operating mode.
@@ -68,13 +68,13 @@ npm run build
 npm test
 ```
 
-CI runs type checking and builds on pushes to `main` and pull requests.
+CI runs type checking, builds, and tests on pushes to `main` and pull requests.
 
 ## Roadmap
 
 - [x] CLI foundation
 - [x] Environment diagnostics
-- [x] Project analyzer
+- [x] Recursive project analyzer
 - [x] AGENTS.md generator
 - [x] Skill catalog foundation
 - [x] Persistent project memory foundation
