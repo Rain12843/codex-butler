@@ -27,6 +27,7 @@ npm start -- doctor
 codex-butler setup
 codex-butler doctor
 codex-butler init [--force]
+codex-butler plan "<task>"
 codex-butler skills
 codex-butler skills list
 codex-butler skills path
@@ -42,6 +43,7 @@ codex-butler config mode <mode>
 - `setup` — initialize Butler's user configuration and show the first-time checklist.
 - `doctor` — inspect Node.js, Git, Codex CLI, GitHub CLI, Python, `~/.codex`, AGENTS.md, configuration, and common MCP configuration locations.
 - `init` — recursively inspect the project (while skipping generated/dependency directories), detect the package manager and common language/tooling files, generate `AGENTS.md`, and initialize `.codex-butler/` project memory.
+- `plan` — turn a plain-language task into a deterministic work plan covering inspection, implementation, validation, and risks. It performs no network calls and does not execute the task.
 - `skills` — browse built-in skills.
 - `skills install` — install a reviewable local skill template. Existing skills are protected from accidental overwrite unless `--force` is supplied.
 - `skills audit` — scan an installed `SKILL.md` for common risky patterns such as remote shell execution, destructive commands, instruction-override attempts, and credential-like content.
@@ -91,13 +93,14 @@ CI runs type checking, builds, and tests on pushes to `main` and pull requests.
 - [x] GitHub Actions CI foundation
 - [x] Skill installation path hardening
 - [x] Skill security audit foundation
+- [x] Deterministic task planner foundation
 - [ ] Skill registry with signed/verified sources
 - [ ] Codex configuration deep inspection
 - [ ] GitHub issue / PR workflows
 - [ ] CI failure diagnostics
 - [ ] Interactive setup wizard
 - [ ] Workflow presets
-- [ ] Task planner / prompt translator
+- [ ] AI-assisted task planner / prompt translator
 
 ## License
 
