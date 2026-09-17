@@ -36,6 +36,10 @@ function parseRuns(raw: string): WorkflowRunSummary[] {
   });
 }
 
+function tableCell(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/[\r\n]+/g, " ");
+}
+
 export async function getRecentWorkflowRuns(limit = 10): Promise<WorkflowRunSummary[]> {
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new Error("Workflow limit must be an integer from 1 to 50");
   const raw = await gh(["run", "list", "--limit", String(limit), "--json", "databaseId,name,status,conclusion,headBranch,headSha,url,createdAt"]);
@@ -45,6 +49,6 @@ export async function getRecentWorkflowRuns(limit = 10): Promise<WorkflowRunSumm
 export function formatWorkflowRuns(runs: WorkflowRunSummary[]): string {
   if (!runs.length) return "# GitHub Actions\n\nNo workflow runs found.\n";
   const lines = ["# GitHub Actions", "", "| Workflow | Status | Branch | Commit | Created |", "| --- | --- | --- | --- | --- |"];
-  for (const run of runs) lines.push(`| ${run.name} | ${run.conclusion ?? run.status} | ${run.branch} | ${run.commit.slice(0, 7)} | ${run.createdAt} |`);
+  for (const run of runs) lines.push(`| ${tableCell(run.name)} | ${tableCell(run.conclusion ?? run.status)} | ${tableCell(run.branch)} | ${tableCell(run.commit.slice(0, 7))} | ${tableCell(run.createdAt)} |`);
   return lines.join("\n") + "\n";
 }
