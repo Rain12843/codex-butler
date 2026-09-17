@@ -32,23 +32,29 @@ export async function inspectCodex(root: string): Promise<CodexCheck[]> {
   const home = homedir();
   const codexDir = join(home, ".codex");
   const configPath = join(codexDir, "config.toml");
-  const agents = [join(home, "AGENTS.md"), join(root, "AGENTS.md")];
-  const mcpJson = join(codexDir, "mcp.json");
-  const projectMcpJson = join(root, ".codex", "mcp.json");
+  const globalAgents = join(codexDir, "AGENTS.md");
+  const globalAgentsOverride = join(codexDir, "AGENTS.override.md");
+  const projectAgents = join(root, "AGENTS.md");
+  const projectAgentsOverride = join(root, "AGENTS.override.md");
+  const userSkills = join(home, ".agents", "skills");
+  const projectSkills = join(root, ".agents", "skills");
   const version = await command("codex", ["--version"]);
   const codexDirExists = await exists(codexDir);
   const configText = await readText(configPath);
-  const globalAgentsExists = await exists(agents[0]);
-  const projectAgentsExists = await exists(agents[1]);
-  const mcpToml = configText !== null && /(^|\n)\s*\[\[?mcp_servers(?:\.|\])/m.test(configText);
-  const mcpJsonExists = (await exists(mcpJson)) || (await exists(projectMcpJson));
+  const globalAgentsExists = (await exists(globalAgents)) || (await exists(globalAgentsOverride));
+  const projectAgentsExists = (await exists(projectAgents)) || (await exists(projectAgentsOverride));
+  const userSkillsExists = await exists(userSkills);
+  const projectSkillsExists = await exists(projectSkills);
+  const mcpToml = configText !== null && /(^|\n)\s*\[mcp_servers(?:\.|\])/m.test(configText);
 
   return [
     { name: "Codex CLI", status: version ? "ok" : "missing", detail: version ?? "codex command not found" },
     { name: "~/.codex", status: codexDirExists ? "ok" : "warning", detail: codexDirExists ? codexDir : "directory not found" },
     { name: "Codex config", status: configText !== null ? "ok" : "warning", detail: configText !== null ? configPath : `config.toml not found or unreadable under ${codexDir}` },
-    { name: "Global AGENTS.md", status: globalAgentsExists ? "ok" : "warning", detail: globalAgentsExists ? agents[0] : "not found" },
-    { name: "Project AGENTS.md", status: projectAgentsExists ? "ok" : "warning", detail: projectAgentsExists ? agents[1] : "not found; run codex-butler init" },
-    { name: "MCP configuration", status: mcpToml || mcpJsonExists ? "ok" : "warning", detail: mcpToml ? "MCP server entries detected in config.toml" : mcpJsonExists ? "MCP configuration file detected" : "no MCP server configuration detected" }
+    { name: "Global AGENTS.md", status: globalAgentsExists ? "ok" : "warning", detail: globalAgentsExists ? "${globalAgents} or ${globalAgentsOverride}" : "not found under ~/.codex" },
+    { name: "Project AGENTS.md", status: projectAgentsExists ? "ok" : "warning", detail: projectAgentsExists ? "${projectAgents} or ${projectAgentsOverride}" : "not found; run codex-butler init" },
+    { name: "User skills", status: userSkillsExists ? "ok" : "warning", detail: userSkillsExists ? userSkills : "not found; run codex-butler skills install <name>" },
+    { name: "Project skills", status: projectSkillsExists ? "ok" : "warning", detail: projectSkillsExists ? projectSkills : "not found" },
+    { name: "MCP configuration", status: mcpToml ? "ok" : "warning", detail: mcpToml ? "MCP server entries detected in ~/.codex/config.toml" : "no [mcp_servers.*] entries detected in config.toml" }
   ];
 }
