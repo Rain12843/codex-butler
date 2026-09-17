@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const files: Record<string, string> = {
@@ -23,4 +23,23 @@ export async function initMemory(root: string): Promise<string[]> {
     }
   }
   return created;
+}
+
+/** Ensure local project memory stays out of git. */
+export async function ensureButlerGitignore(root: string): Promise<boolean> {
+  const gitignorePath = join(root, ".gitignore");
+  const entry = ".codex-butler/";
+  let existing = "";
+  try {
+    existing = await readFile(gitignorePath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    await writeFile(gitignorePath, `${entry}\n`, "utf8");
+    return true;
+  }
+  const lines = existing.split(/\r?\n/);
+  if (lines.some((line) => line.trim() === entry || line.trim() === ".codex-butler")) return false;
+  const suffix = existing.endsWith("\n") || existing.length === 0 ? "" : "\n";
+  await writeFile(gitignorePath, `${existing}${suffix}${entry}\n`, "utf8");
+  return true;
 }
