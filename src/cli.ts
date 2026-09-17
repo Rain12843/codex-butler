@@ -9,7 +9,7 @@ import { ensureConfig, getConfigPath, loadConfig, saveConfig, isButlerMode } fro
 import { inspectCodex } from "./core/codex.js";
 import { auditSkillDirectory } from "./core/skill-audit.js";
 import { formatTaskPlan, planTask } from "./core/planner.js";
-import { formatGitHubContext, getIssueContext, getPullRequestContext } from "./core/github.js";
+import { formatGitHubContext, getIssueContext, getPullRequestContext, analyzePullRequestDiff, formatPullRequestDiffAnalysis } from "./core/github.js";
 import { diagnoseWorkflowRun, formatWorkflowDiagnosis, formatWorkflowRuns, getRecentWorkflowRuns } from "./core/ci.js";
 
 const program = new Command();
@@ -70,6 +70,10 @@ github.command("issue <number>").description("Show an issue as structured contex
 });
 github.command("pr <number>").description("Show a pull request as structured context").action(async (number: string) => {
   try { console.log(formatGitHubContext(await getPullRequestContext(Number(number)))); }
+  catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
+});
+github.command("pr-diff <number>").description("Analyze a pull request diff for change scope and risky patterns").action(async (number: string) => {
+  try { console.log(formatPullRequestDiffAnalysis(await analyzePullRequestDiff(Number(number)))); }
   catch (error) { console.error(pc.red(error instanceof Error ? error.message : String(error))); process.exitCode = 1; }
 });
 github.command("ci").description("Show recent GitHub Actions workflow runs").option("-n, --limit <number>", "number of runs to inspect", "10").action(async (options: { limit: string }) => {
