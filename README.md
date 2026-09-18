@@ -57,6 +57,7 @@ codex-butler status
 codex-butler codex-config
 codex-butler init [--force]
 codex-butler plan "<task>" [--json|--prompt]
+codex-butler mcp
 codex-butler github issue <number>
 codex-butler github pr <number>
 codex-butler github issue-create --title <title> --body-file <path> [--submit]
@@ -85,6 +86,7 @@ codex-butler config mode <mode>
 - `codex-config` — summarize `~/.codex/config.toml`: model, provider, approval policy, sandbox mode, reasoning effort, MCP servers, and optional project `.codex/config.toml`.
 - `init` — recursively inspect the project (with depth/file safety limits), generate `AGENTS.md`, initialize `.codex-butler/` project memory, and ensure it is gitignored.
 - `plan` — deterministic work plan. Use `--json` for structured output or `--prompt` for a compact prompt you can paste into Codex.
+- `mcp` — optional read-only MCP server over stdio with task planning, bounded project summaries, skill listing, and skill auditing.
 - `github issue` / `github pr` — read issue or pull-request context through the local `gh` CLI with fixed argument lists.
 - `github issue-create` — safely preview an Issue assembled from a validated title and local Markdown body; create it only with explicit `--submit`.
 - `github issue-comment` / `github pr-comment` — safely preview a local Markdown comment; publish only with explicit `--submit`. Body files are bounded, must be regular files, and are rejected when they appear to contain credentials.
@@ -109,6 +111,16 @@ Butler is intentionally conservative:
 - Config inspection is read-only and does not print secrets from `auth.json` or environment variables.
 
 Built-in and imported skills are installed under `~/.agents/skills/`, which is a Codex skill discovery path (user scope).
+
+## Optional MCP server
+
+Run Butler as a local stdio MCP server:
+
+```bash
+codex mcp add codex-butler -- codex-butler mcp
+```
+
+The server exposes only read-only tools: `plan_task`, `project_summary`, `skills_list`, and `skill_audit`. Project inspection is restricted to the server working directory and its descendants.
 
 ## Project memory
 
@@ -144,5 +156,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. CI runs type checking, bu
 - [ ] Skill registry with signed/verified sources
 - [x] GitHub issue / PR comment workflow foundation
 - [ ] Additional GitHub issue / PR action workflows
-- [ ] Optional MCP server mode
+- [x] Optional read-only MCP server foundation
 - [ ] npm publish

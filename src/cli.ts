@@ -38,6 +38,7 @@ import {
   getWorkflowRunSummary,
 } from "./core/ci.js";
 import { formatPullRequestReview, reviewPullRequest } from "./core/pr-review.js";
+import { runMcpServer } from "./core/mcp.js";
 
 const program = new Command();
 program
@@ -178,6 +179,13 @@ program
       console.error(pc.red(error instanceof Error ? error.message : String(error)));
       process.exitCode = 1;
     }
+  });
+
+program
+  .command("mcp")
+  .description("Run the optional read-only MCP server over stdio")
+  .action(async () => {
+    await runMcpServer();
   });
 
 const github = program.command("github").description("Inspect GitHub context through the local GitHub CLI");
