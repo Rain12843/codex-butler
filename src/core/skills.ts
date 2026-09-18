@@ -1,7 +1,7 @@
 import { access, copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 export type SkillCategory =
   | "frontend"
@@ -160,9 +160,7 @@ export async function installSkill(name: string, force = false): Promise<string>
     await access(targetFile, constants.F_OK);
     if (!force) throw new Error(`Skill already exists at ${targetFile}. Use --force to overwrite.`);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !(error instanceof Error && error.message.includes("already exists"))) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   await mkdir(targetDir, { recursive: true });
   await writeFile(targetFile, skillMarkdown(skill), "utf8");
@@ -268,17 +266,28 @@ export async function importSkillDirectory(sourcePath: string, forceOrName?: boo
   }
 
   assertSafeName(name);
-  await validateSkillTree(source);
   const targetDir = getSkillPath(name);
+  const sourceFromTarget = relative(targetDir, source);
+  const targetFromSource = relative(source, targetDir);
+  const overlapsTarget =
+    sourceFromTarget === "" ||
+    (!sourceFromTarget.startsWith("..") && !isAbsolute(sourceFromTarget)) ||
+    (!targetFromSource.startsWith("..") && !isAbsolute(targetFromSource));
+  if (overlapsTarget) {
+    throw new Error("Skill source and destination must not overlap");
+  }
 
+  await validateSkillTree(source);
+
+  let targetExists = false;
   try {
     await access(targetDir, constants.F_OK);
-    if (!overwrite) throw new Error(`Skill already exists at ${targetDir}. Use --force to overwrite.`);
-    await rm(targetDir, { recursive: true, force: true });
+    targetExists = true;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !(error instanceof Error && /already exists/.test(error.message))) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  if (targetExists && !overwrite) {
+    throw new Error(`Skill already exists at ${targetDir}. Use --force to overwrite.`);
   }
 
   const stagingParent = dirname(targetDir);
@@ -297,7 +306,20 @@ export async function importSkillDirectory(sourcePath: string, forceOrName?: boo
       }
     }
     await copyTree(source, staging);
-    await rename(staging, targetDir);
+    // Keep the previous installation recoverable until the staged tree is in place.
+    if (targetExists) {
+      const backup = `${staging}-backup`;
+      await rename(targetDir, backup);
+      try {
+        await rename(staging, targetDir);
+      } catch (error) {
+        await rename(backup, targetDir).catch(() => undefined);
+        throw error;
+      }
+      await rm(backup, { recursive: true, force: true });
+    } else {
+      await rename(staging, targetDir);
+    }
   } catch (error) {
     await rm(staging, { recursive: true, force: true }).catch(() => undefined);
     throw error;
