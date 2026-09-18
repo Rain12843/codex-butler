@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import { lstat, readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { promisify } from "node:util";
 import { redactSensitiveText } from "./redaction.js";
 
@@ -22,6 +24,18 @@ export interface PullRequestDiffAnalysis {
   warnings: string[];
   diffExcerpt: string;
 }
+
+export type GitHubCommentKind = "issue" | "pull_request";
+
+export interface GitHubCommentResult {
+  kind: GitHubCommentKind;
+  number: number;
+  body: string;
+  submitted: boolean;
+  url: string | null;
+}
+
+const MAX_COMMENT_BYTES = 16 * 1024;
 
 function validateNumber(number: number, label: string): void {
   if (!Number.isInteger(number) || number < 1) throw new Error(`${label} number must be a positive integer`);
@@ -68,6 +82,55 @@ export async function getPullRequestContext(number: number): Promise<GitHubConte
 export async function getPullRequestDiff(number: number): Promise<string> {
   validateNumber(number, "Pull request");
   return gh(["pr", "diff", String(number), "--patch"], 4 * 1024 * 1024);
+}
+
+export function buildGitHubCommentArgs(kind: GitHubCommentKind, number: number, body: string): string[] {
+  validateNumber(number, kind === "issue" ? "Issue" : "Pull request");
+  return [kind === "issue" ? "issue" : "pr", "comment", String(number), "--body", body];
+}
+
+export async function loadGitHubCommentBody(path: string): Promise<string> {
+  const source = resolve(path);
+  const metadata = await lstat(source);
+  if (metadata.isSymbolicLink()) throw new Error("Comment body file cannot be a symbolic link");
+  if (!metadata.isFile()) throw new Error("Comment body path must be a regular file");
+  if (metadata.size > MAX_COMMENT_BYTES) throw new Error(`Comment body exceeds ${MAX_COMMENT_BYTES} bytes`);
+  const body = await readFile(source, "utf8");
+  if (!body.trim()) throw new Error("Comment body cannot be empty");
+  if (redactSensitiveText(body) !== body) {
+    throw new Error("Comment body appears to contain credentials; remove sensitive values before continuing");
+  }
+  return body;
+}
+
+export async function commentOnGitHub(
+  kind: GitHubCommentKind,
+  number: number,
+  bodyPath: string,
+  submit = false
+): Promise<GitHubCommentResult> {
+  const body = await loadGitHubCommentBody(bodyPath);
+  if (!submit) return { kind, number, body, submitted: false, url: null };
+  const output = await gh(buildGitHubCommentArgs(kind, number, body));
+  const url = output.split(/\r?\n/).find((line) => /^https:\/\//.test(line.trim()))?.trim() ?? null;
+  return { kind, number, body, submitted: true, url };
+}
+
+export function formatGitHubCommentResult(result: GitHubCommentResult): string {
+  const target = result.kind === "issue" ? "Issue" : "Pull Request";
+  return [
+    `# GitHub ${target} Comment`,
+    "",
+    `- Target: ${target} #${result.number}`,
+    `- Status: ${result.submitted ? "submitted" : "preview only"}`,
+    ...(result.url ? [`- URL: ${result.url}`] : []),
+    "",
+    "## Body",
+    "",
+    result.body,
+    ...(result.submitted ? [] : ["", "Run again with `--submit` to publish this comment."]),
+    ""
+  ].join("\n");
 }
 
 export function analyzeDiffText(number: number, diff: string): PullRequestDiffAnalysis {
