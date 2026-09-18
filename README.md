@@ -98,7 +98,7 @@ Butler is intentionally conservative:
 - It never executes shell commands derived from issue/PR bodies or skill text.
 - GitHub access goes through the installed `gh` CLI with fixed argument lists.
 - Skill import validates tree shape (no symlinks, bounded file count and size) before installation.
-- Skill audit is heuristic and advisory; it does not claim to prove safety.
+- Skill audit scans the full bounded skill tree and remains heuristic and advisory; it does not claim to prove safety.
 - Project memory under `.codex-butler/` is gitignored by default.
 - Config inspection is read-only and does not print secrets from `auth.json` or environment variables.
 
