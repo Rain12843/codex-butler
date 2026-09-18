@@ -35,7 +35,14 @@ export interface GitHubCommentResult {
   url: string | null;
 }
 
-const MAX_COMMENT_BYTES = 16 * 1024;
+export interface GitHubIssueCreateResult {
+  title: string;
+  body: string;
+  submitted: boolean;
+  url: string | null;
+}
+
+const MAX_GITHUB_BODY_BYTES = 16 * 1024;
 
 function validateNumber(number: number, label: string): void {
   if (!Number.isInteger(number) || number < 1) throw new Error(`${label} number must be a positive integer`);
@@ -89,19 +96,36 @@ export function buildGitHubCommentArgs(kind: GitHubCommentKind, number: number, 
   return [kind === "issue" ? "issue" : "pr", "comment", String(number), "--body", body];
 }
 
-export async function loadGitHubCommentBody(path: string): Promise<string> {
+export function validateGitHubIssueTitle(value: string): string {
+  const title = value.trim();
+  if (!title) throw new Error("Issue title cannot be empty");
+  if (/\r|\n/.test(title)) throw new Error("Issue title must be a single line");
+  if (title.length > 256) throw new Error("Issue title cannot exceed 256 characters");
+  if (redactSensitiveText(title) !== title) {
+    throw new Error("Issue title appears to contain credentials; remove sensitive values before continuing");
+  }
+  return title;
+}
+
+export function buildGitHubIssueCreateArgs(title: string, body: string): string[] {
+  return ["issue", "create", "--title", validateGitHubIssueTitle(title), "--body", body];
+}
+
+export async function loadGitHubBodyFile(path: string): Promise<string> {
   const source = resolve(path);
   const metadata = await lstat(source);
-  if (metadata.isSymbolicLink()) throw new Error("Comment body file cannot be a symbolic link");
-  if (!metadata.isFile()) throw new Error("Comment body path must be a regular file");
-  if (metadata.size > MAX_COMMENT_BYTES) throw new Error(`Comment body exceeds ${MAX_COMMENT_BYTES} bytes`);
+  if (metadata.isSymbolicLink()) throw new Error("GitHub body file cannot be a symbolic link");
+  if (!metadata.isFile()) throw new Error("GitHub body path must be a regular file");
+  if (metadata.size > MAX_GITHUB_BODY_BYTES) throw new Error(`GitHub body exceeds ${MAX_GITHUB_BODY_BYTES} bytes`);
   const body = await readFile(source, "utf8");
-  if (!body.trim()) throw new Error("Comment body cannot be empty");
+  if (!body.trim()) throw new Error("GitHub body cannot be empty");
   if (redactSensitiveText(body) !== body) {
-    throw new Error("Comment body appears to contain credentials; remove sensitive values before continuing");
+    throw new Error("GitHub body appears to contain credentials; remove sensitive values before continuing");
   }
   return body;
 }
+
+export const loadGitHubCommentBody = loadGitHubBodyFile;
 
 export async function commentOnGitHub(
   kind: GitHubCommentKind,
@@ -109,11 +133,24 @@ export async function commentOnGitHub(
   bodyPath: string,
   submit = false
 ): Promise<GitHubCommentResult> {
-  const body = await loadGitHubCommentBody(bodyPath);
+  const body = await loadGitHubBodyFile(bodyPath);
   if (!submit) return { kind, number, body, submitted: false, url: null };
   const output = await gh(buildGitHubCommentArgs(kind, number, body));
   const url = output.split(/\r?\n/).find((line) => /^https:\/\//.test(line.trim()))?.trim() ?? null;
   return { kind, number, body, submitted: true, url };
+}
+
+export async function createGitHubIssue(
+  title: string,
+  bodyPath: string,
+  submit = false
+): Promise<GitHubIssueCreateResult> {
+  const normalizedTitle = validateGitHubIssueTitle(title);
+  const body = await loadGitHubBodyFile(bodyPath);
+  if (!submit) return { title: normalizedTitle, body, submitted: false, url: null };
+  const output = await gh(buildGitHubIssueCreateArgs(normalizedTitle, body));
+  const url = output.split(/\r?\n/).find((line) => /^https:\/\//.test(line.trim()))?.trim() ?? null;
+  return { title: normalizedTitle, body, submitted: true, url };
 }
 
 export function formatGitHubCommentResult(result: GitHubCommentResult): string {
@@ -129,6 +166,21 @@ export function formatGitHubCommentResult(result: GitHubCommentResult): string {
     "",
     result.body,
     ...(result.submitted ? [] : ["", "Run again with `--submit` to publish this comment."]),
+    ""
+  ].join("\n");
+}
+
+export function formatGitHubIssueCreateResult(result: GitHubIssueCreateResult): string {
+  return [
+    "# GitHub Issue Creation",
+    "",
+    `- Status: ${result.submitted ? "submitted" : "preview only"}`,
+    ...(result.url ? [`- URL: ${result.url}`] : []),
+    "",
+    `## ${result.title}`,
+    "",
+    result.body,
+    ...(result.submitted ? [] : ["", "Run again with `--submit` to create this issue."]),
     ""
   ].join("\n");
 }
