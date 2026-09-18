@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Redact common passwords, tokens, authorization headers, and private keys from external content excerpts
+- Write Butler configuration atomically with private permissions and repair malformed JSON during setup
 - Add a lockfile and use `npm ci` in CI for reproducible installs
 - Prevent built-in skill installation from overwriting existing files without `--force`
 - Make forced skill imports stage and roll back replacements safely
