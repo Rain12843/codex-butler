@@ -3,11 +3,16 @@ import assert from "node:assert/strict";
 import { extractMcpServerNames, extractTomlValue, summarizeConfigText } from "./codex.js";
 
 test("extractTomlValue reads quoted and bare values", () => {
-  const text = `model = "gpt-5.5"\napproval_policy = on-request\nsandbox_mode = 'workspace-write'\n`;
-  assert.equal(extractTomlValue(text, "model"), "gpt-5.5");
+  const text = `model = "gpt-5.5#stable" # comment\napproval_policy = on-request\nsandbox_mode = 'workspace-write'\n`;
+  assert.equal(extractTomlValue(text, "model"), "gpt-5.5#stable");
   assert.equal(extractTomlValue(text, "approval_policy"), "on-request");
   assert.equal(extractTomlValue(text, "sandbox_mode"), "workspace-write");
   assert.equal(extractTomlValue(text, "missing_key"), null);
+});
+
+test("extractTomlValue ignores values inside TOML tables", () => {
+  const text = `[profiles.review]\nmodel = "profile-model"\n`;
+  assert.equal(extractTomlValue(text, "model"), null);
 });
 
 test("extractMcpServerNames finds table headers", () => {
