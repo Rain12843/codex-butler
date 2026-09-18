@@ -59,6 +59,8 @@ codex-butler init [--force]
 codex-butler plan "<task>" [--json|--prompt]
 codex-butler github issue <number>
 codex-butler github pr <number>
+codex-butler github issue-comment <number> --body-file <path> [--submit]
+codex-butler github pr-comment <number> --body-file <path> [--submit]
 codex-butler github issue-plan <number> [--json|--prompt]
 codex-butler github pr-plan <number> [--json|--prompt]
 codex-butler github pr-review <number>
@@ -83,6 +85,7 @@ codex-butler config mode <mode>
 - `init` — recursively inspect the project (with depth/file safety limits), generate `AGENTS.md`, initialize `.codex-butler/` project memory, and ensure it is gitignored.
 - `plan` — deterministic work plan. Use `--json` for structured output or `--prompt` for a compact prompt you can paste into Codex.
 - `github issue` / `github pr` — read issue or pull-request context through the local `gh` CLI with fixed argument lists.
+- `github issue-comment` / `github pr-comment` — safely preview a local Markdown comment; publish only with explicit `--submit`. Body files are bounded, must be regular files, and are rejected when they appear to contain credentials.
 - `github issue-plan` / `github pr-plan` — combine GitHub context with the planner (`--json` / `--prompt` supported).
 - `github pr-review` — structured review checklist from PR metadata and changed files.
 - `github ci` / `github runs` — list recent workflow runs.
@@ -137,6 +140,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. CI runs type checking, bu
 - [x] Plan JSON / paste-ready Codex prompt
 - [x] Doctor critical exit codes
 - [ ] Skill registry with signed/verified sources
-- [ ] GitHub issue / PR action workflows
+- [x] GitHub issue / PR comment workflow foundation
+- [ ] Additional GitHub issue / PR action workflows
 - [ ] Optional MCP server mode
 - [ ] npm publish

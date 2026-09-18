@@ -21,6 +21,8 @@ import { auditSkillDirectory } from "./core/skill-audit.js";
 import { formatCodexPrompt, formatTaskPlan, planGitHubContext, planTask } from "./core/planner.js";
 import {
   formatGitHubContext,
+  commentOnGitHub,
+  formatGitHubCommentResult,
   getIssueContext,
   getPullRequestContext,
   analyzePullRequestDiff,
@@ -209,6 +211,31 @@ github.command("pr <number>").description("Show a pull request as structured con
     process.exitCode = 1;
   }
 });
+function addCommentCommand(kind: "issue" | "pull_request") {
+  const commandName = kind === "issue" ? "issue-comment" : "pr-comment";
+  const label = kind === "issue" ? "issue" : "pull request";
+  github
+    .command(`${commandName} <number>`)
+    .description(`Preview or submit a comment on a GitHub ${label}`)
+    .requiredOption("--body-file <path>", "UTF-8 file containing the comment body")
+    .option("--submit", "publish the comment; without this flag only a preview is shown")
+    .action(async (number: string, options: { bodyFile: string; submit?: boolean }) => {
+      try {
+        const result = await commentOnGitHub(
+          kind,
+          parsePositiveInteger(number, kind === "issue" ? "Issue number" : "Pull request number"),
+          options.bodyFile,
+          options.submit === true
+        );
+        console.log(formatGitHubCommentResult(result));
+      } catch (error) {
+        console.error(pc.red(error instanceof Error ? error.message : String(error)));
+        process.exitCode = 1;
+      }
+    });
+}
+addCommentCommand("issue");
+addCommentCommand("pull_request");
 github
   .command("pr-plan <number>")
   .description("Turn a GitHub pull request into a deterministic review plan")
