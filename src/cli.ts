@@ -376,7 +376,7 @@ skills.command("audit <name>").description("Audit an installed skill for risky i
       return;
     }
     for (const finding of findings) {
-      console.log(`${finding.severity === "high" ? pc.red("✗") : pc.yellow("!")} ${finding.detail}`);
+      console.log(`${finding.severity === "high" ? pc.red("✗") : pc.yellow("!")} ${finding.file}: ${finding.detail}`);
     }
     process.exitCode = findings.some((finding) => finding.severity === "high") ? 2 : 0;
   } catch (error) {

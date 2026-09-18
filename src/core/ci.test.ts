@@ -50,6 +50,11 @@ test("workflow log analyzer classifies test failures", () => {
   assert.match(result.likelyCause, /test or assertion/i);
 });
 
+test("workflow log analyzer does not misclassify npm test lifecycle errors as dependency failures", () => {
+  const result = analyzeWorkflowLog("##[group]Run npm test\nAssertionError: expected 1 to equal 2\nnpm error Lifecycle script `test` failed\n");
+  assert.equal(result.category, "Tests");
+});
+
 test("workflow diagnosis formatter marks logs as untrusted", () => {
   const diagnosis: WorkflowDiagnosis = {
     runId: 123,

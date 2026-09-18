@@ -53,18 +53,49 @@ async function readText(path: string): Promise<string | null> {
   }
 }
 
+function stripTomlComment(value: string): string {
+  let quote: "\"" | "'" | null = null;
+  let escaped = false;
+  for (let index = 0; index < value.length; index++) {
+    const character = value[index];
+    if (quote === "\"") {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+    } else if (quote === "'") {
+      if (character === quote) quote = null;
+    } else if (character === "\"" || character === "'") {
+      quote = character;
+    } else if (character === "#") {
+      return value.slice(0, index).trim();
+    }
+  }
+  return value.trim();
+}
+
 /** Extract a top-level TOML string/bare value without a full parser. */
 export function extractTomlValue(text: string, key: string): string | null {
-  // Escape key for regex, then match quoted or bare TOML values.
   const safeKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(
-    "(?:^|\\n)\\s*" + safeKey + "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\n#]+))",
-    "m"
-  );
-  const match = text.match(re);
-  if (!match) return null;
-  const value = (match[1] ?? match[2] ?? match[3] ?? "").trim();
-  return value.length > 0 ? value : null;
+  const assignment = new RegExp(`^${safeKey}\\s*=\\s*(.*)$`);
+  let insideTable = false;
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    if (trimmed.startsWith("[")) {
+      insideTable = true;
+      continue;
+    }
+    if (insideTable) continue;
+    const match = trimmed.match(assignment);
+    if (!match) continue;
+    const raw = stripTomlComment(match[1] ?? "");
+    const quoted =
+      (raw.startsWith("\"") && raw.endsWith("\"")) ||
+      (raw.startsWith("'") && raw.endsWith("'"));
+    const value = (quoted ? raw.slice(1, -1) : raw).trim();
+    return value.length > 0 ? value : null;
+  }
+  return null;
 }
 
 /** List [mcp_servers.name] table headers from config.toml text. */

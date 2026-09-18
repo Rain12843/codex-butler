@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Add a lockfile and use `npm ci` in CI for reproducible installs
+- Prevent built-in skill installation from overwriting existing files without `--force`
+- Make forced skill imports stage and roll back replacements safely
+- Ignore profile/table values when inspecting top-level Codex TOML settings
+- Audit every file in a bounded skill tree and report the finding path
+- Classify `npm test` lifecycle failures as test failures instead of dependency failures
+- Avoid duplicate builds in CI and the prepublish check
+- Exclude compiled test files from the published npm package
+
 ## 0.8.2
 
 - `doctor --json` for machine-readable environment reports

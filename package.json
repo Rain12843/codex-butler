@@ -7,7 +7,9 @@
     "codex-butler": "dist/cli.js"
   },
   "files": [
-    "dist",
+    "dist/cli.js",
+    "dist/core/*.js",
+    "!dist/core/*.test.js",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"
@@ -18,7 +20,7 @@
     "start": "node dist/cli.js",
     "check": "tsc --noEmit",
     "test": "npm run build && node --test dist/core/*.test.js",
-    "prepublishOnly": "npm run check && npm run build && npm test"
+    "prepublishOnly": "npm run check && npm test"
   },
   "engines": {
     "node": ">=20"
