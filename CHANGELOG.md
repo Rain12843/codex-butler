@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add an optional read-only stdio MCP server with planning, project summary, and skill tools
 - Add a safe, preview-first `github issue-create` workflow
 - Add safe, preview-first `github issue-comment` and `github pr-comment` workflows
 - Redact common passwords, tokens, authorization headers, and private keys from external content excerpts
