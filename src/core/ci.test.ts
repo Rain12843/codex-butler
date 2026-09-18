@@ -79,3 +79,9 @@ test("workflow diagnosis formatter marks logs as untrusted", () => {
   assert.match(output, /error TS2322/);
   assert.match(output, /npm run check/);
 });
+
+test("workflow log excerpts redact credentials", () => {
+  const result = analyzeWorkflowLog("npm test failed\nAPI_KEY=super-secret-value\nAuthorization: Bearer abcdefghijklmnop");
+  assert.doesNotMatch(result.logExcerpt, /super-secret-value|abcdefghijklmnop/);
+  assert.match(result.logExcerpt, /\[REDACTED\]/);
+});
