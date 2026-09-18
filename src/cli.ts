@@ -22,7 +22,9 @@ import { formatCodexPrompt, formatTaskPlan, planGitHubContext, planTask } from "
 import {
   formatGitHubContext,
   commentOnGitHub,
+  createGitHubIssue,
   formatGitHubCommentResult,
+  formatGitHubIssueCreateResult,
   getIssueContext,
   getPullRequestContext,
   analyzePullRequestDiff,
@@ -179,6 +181,21 @@ program
   });
 
 const github = program.command("github").description("Inspect GitHub context through the local GitHub CLI");
+github
+  .command("issue-create")
+  .description("Preview or create a GitHub issue")
+  .requiredOption("--title <title>", "single-line issue title")
+  .requiredOption("--body-file <path>", "UTF-8 file containing the issue body")
+  .option("--submit", "create the issue; without this flag only a preview is shown")
+  .action(async (options: { title: string; bodyFile: string; submit?: boolean }) => {
+    try {
+      const result = await createGitHubIssue(options.title, options.bodyFile, options.submit === true);
+      console.log(formatGitHubIssueCreateResult(result));
+    } catch (error) {
+      console.error(pc.red(error instanceof Error ? error.message : String(error)));
+      process.exitCode = 1;
+    }
+  });
 github.command("issue <number>").description("Show an issue as structured context").action(async (number: string) => {
   try {
     console.log(formatGitHubContext(await getIssueContext(parsePositiveInteger(number, "Issue number"))));
