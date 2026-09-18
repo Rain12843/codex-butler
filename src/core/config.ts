@@ -1,6 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export type ButlerMode = "fast" | "developer" | "deep" | "review" | "debug" | "architecture" | "release" | "autonomous";
 
@@ -56,16 +57,33 @@ export async function loadConfig(): Promise<ButlerConfig> {
 export async function saveConfig(config: ButlerConfig): Promise<void> {
   const normalized = normalizeConfig(config);
   const path = getConfigPath();
-  await mkdir(join(homedir(), ".codex-butler"), { recursive: true });
-  await writeFile(path, JSON.stringify(normalized, null, 2) + "\n", "utf8");
+  const directory = dirname(path);
+  const temporaryPath = join(directory, `.config-${process.pid}-${randomUUID()}.tmp`);
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  try {
+    await writeFile(temporaryPath, JSON.stringify(normalized, null, 2) + "\n", {
+      encoding: "utf8",
+      flag: "wx",
+      mode: 0o600,
+    });
+    await rename(temporaryPath, path);
+  } catch (error) {
+    await rm(temporaryPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function ensureConfig(): Promise<ButlerConfig> {
-  const config = await loadConfig();
   try {
-    await readFile(getConfigPath(), "utf8");
-  } catch {
+    const raw = await readFile(getConfigPath(), "utf8");
+    const config = normalizeConfig(JSON.parse(raw));
+    const canonical = JSON.stringify(config, null, 2) + "\n";
+    if (raw !== canonical) await saveConfig(config);
+    return config;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
+    const config = { ...defaultConfig, skillPaths: [...defaultConfig.skillPaths] };
     await saveConfig(config);
+    return config;
   }
-  return config;
 }

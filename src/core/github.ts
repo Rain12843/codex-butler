@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { redactSensitiveText } from "./redaction.js";
 
 const exec = promisify(execFile);
 
@@ -88,7 +89,7 @@ export function analyzeDiffText(number: number, diff: string): PullRequestDiffAn
 
   const warnings = new Set<string>();
   const lower = diff.toLowerCase();
-  if (/\b(api[_ -]?key|secret|token|password)\s*[:=]/i.test(diff) || /-----begin (rsa|openssh|private) key-----/i.test(diff)) warnings.add("The diff contains credential-like material; inspect it before committing.");
+  if (/\b(api[_ -]?key|secret|token|password)\s*[:=]/i.test(diff) || /-----begin [^-\r\n]*private key-----/i.test(diff)) warnings.add("The diff contains credential-like material; inspect it before committing.");
   if (/curl\s+[^\n|]+\|\s*(sh|bash)|wget\s+[^\n|]+\|\s*(sh|bash)/i.test(diff)) warnings.add("The diff introduces a remote-download-and-shell pattern.");
   if (/rm\s+-rf\s+(\/|~|\$home)/i.test(diff)) warnings.add("The diff contains a broad recursive delete command.");
   if (/chmod\s+777|sudo\s+/i.test(diff)) warnings.add("The diff introduces elevated privileges or broad permission changes.");
@@ -96,7 +97,8 @@ export function analyzeDiffText(number: number, diff: string): PullRequestDiffAn
   if (changedFiles.some((file) => /(^|\/)(\.env|.*\.pem|.*\.key)$/.test(file))) warnings.add("The diff changes a potentially sensitive environment or key file.");
 
   const lines = diff.split("\n").filter((line) => line.trim());
-  return { number, filesChanged: changedFiles.length, additions, deletions, changedFiles: changedFiles.slice(0, 100), warnings: [...warnings], diffExcerpt: lines.slice(0, 120).join("\n").slice(0, 12000) };
+  const diffExcerpt = redactSensitiveText(lines.slice(0, 120).join("\n")).slice(0, 12000);
+  return { number, filesChanged: changedFiles.length, additions, deletions, changedFiles: changedFiles.slice(0, 100), warnings: [...warnings], diffExcerpt };
 }
 
 export async function analyzePullRequestDiff(number: number): Promise<PullRequestDiffAnalysis> {
@@ -128,5 +130,7 @@ export function formatPullRequestDiffAnalysis(analysis: PullRequestDiffAnalysis)
 
 export function formatGitHubContext(context: GitHubContext): string {
   const heading = context.kind === "pull_request" ? "Pull Request" : "Issue";
-  return `# ${heading} #${context.number}\n\n**${context.title}**\n\n- State: ${context.state}\n- URL: ${context.url}\n\n## Body\n\n${context.body || "(empty)"}\n`;
+  const title = redactSensitiveText(context.title);
+  const body = redactSensitiveText(context.body);
+  return `# ${heading} #${context.number}\n\n**${title}**\n\n- State: ${context.state}\n- URL: ${context.url}\n\n## Body\n\n${body || "(empty)"}\n`;
 }

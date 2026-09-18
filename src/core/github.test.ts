@@ -50,6 +50,21 @@ test("PR diff analyzer flags common risky patterns", () => {
   assert.ok(result.warnings.some((warning) => warning.includes("remote-download")));
   assert.ok(result.warnings.some((warning) => warning.includes("elevated privileges")));
   assert.ok(result.warnings.some((warning) => warning.includes("sensitive environment")));
+  assert.doesNotMatch(result.diffExcerpt, /secret-value/);
+  assert.match(result.diffExcerpt, /API_KEY=\[REDACTED\]/);
+});
+
+test("GitHub context formatter redacts credentials in external content", () => {
+  const output = formatGitHubContext({
+    kind: "issue",
+    number: 8,
+    title: "Leaked token sk-abcdefghijklmnopqrstuvwxyz",
+    state: "OPEN",
+    body: "PASSWORD=hunter2",
+    url: "https://github.com/example/repo/issues/8"
+  });
+  assert.doesNotMatch(output, /sk-abcdefghijklmnopqrstuvwxyz|hunter2/);
+  assert.match(output, /\[REDACTED/);
 });
 
 test("PR diff formatter labels the excerpt as untrusted", () => {

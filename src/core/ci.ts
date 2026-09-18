@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { redactSensitiveText } from "./redaction.js";
 
 const exec = promisify(execFile);
 
@@ -88,7 +89,7 @@ export function workflowLogExcerpt(log: string): string {
   const lines = log.split("\n").filter((line) => line.trim());
   const errorIndex = lines.findIndex((line) => /error|failed|failure|fatal|exception|ts\d{4}/i.test(line));
   const start = Math.max(0, errorIndex < 0 ? lines.length - 20 : errorIndex - 4);
-  return lines.slice(start, start + 25).join("\n").slice(0, 6000);
+  return redactSensitiveText(lines.slice(start, start + 25).join("\n")).slice(0, 6000);
 }
 
 export function analyzeWorkflowLog(log: string): Pick<WorkflowDiagnosis, "failedSteps" | "category" | "likelyCause" | "nextSteps" | "logExcerpt"> {
