@@ -1,10 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { validateSkillTree } from "./skills.js";
 
 export interface SkillFinding {
   severity: "warning" | "high";
   rule: string;
   detail: string;
+  file: string;
 }
 
 const rules: Array<[RegExp, SkillFinding["severity"], string]> = [
@@ -21,11 +23,17 @@ export async function auditSkillFile(path: string): Promise<SkillFinding[]> {
   const text = await readFile(path, "utf8");
   const findings: SkillFinding[] = [];
   for (const [pattern, severity, detail] of rules) {
-    if (pattern.test(text)) findings.push({ severity, rule: pattern.source, detail });
+    if (pattern.test(text)) findings.push({ severity, rule: pattern.source, detail, file: path });
   }
   return findings;
 }
 
 export async function auditSkillDirectory(directory: string): Promise<SkillFinding[]> {
-  return auditSkillFile(join(directory, "SKILL.md"));
+  const files = await validateSkillTree(directory);
+  const findings: SkillFinding[] = [];
+  for (const file of files) {
+    const fileFindings = await auditSkillFile(join(directory, file.relativePath));
+    findings.push(...fileFindings.map((finding) => ({ ...finding, file: file.relativePath })));
+  }
+  return findings;
 }
